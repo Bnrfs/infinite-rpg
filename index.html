@@ -67,7 +67,7 @@ body{
   width:340px;
   display:flex;flex-direction:column;gap:8px;
   overflow-y:auto;
-  padding-bottom:20px;
+  padding:0 0 60px 0;
   scroll-behavior:smooth;
 }
 #action-panel h2{
@@ -512,13 +512,14 @@ body{
 /* 移动端适配 */
 .mobile-toggle{
   position:fixed;top:50%;right:0;z-index:100;
-  background:rgba(0,0,0,0.8);color:#ffcc44;border:1px solid #444;
-  border-right:none;padding:6px 8px;border-radius:6px 0 0 6px;
-  cursor:pointer;font-size:11px;writing-mode:vertical-rl;
-  display:none;
+  background:rgba(0,0,0,0.85);color:#ffcc44;border:1px solid #555;
+  border-right:none;padding:8px 10px;border-radius:8px 0 0 8px;
+  cursor:pointer;font-size:14px;writing-mode:vertical-rl;
+  display:block;box-shadow:-2px 0 10px rgba(0,0,0,0.5);
+  transition:background 0.2s;
 }
+.mobile-toggle:hover{background:rgba(60,40,120,0.85);color:#fff;}
 @media(max-width:900px){
-  .mobile-toggle{display:block;}
   body.mobile-mode #game-container{max-width:100vw;margin:0;border-radius:0;}
   body.mobile-mode #top-bar{flex-wrap:wrap;gap:2px;padding:4px 6px;font-size:10px;}
   body.mobile-mode #top-bar span{font-size:10px;}
