@@ -18,7 +18,7 @@ if "%commit_msg%"=="" set commit_msg=更新游戏内容
 
 echo.
 echo [1/3] 添加文件...
-git add infinite-rpg.html
+git add index.html
 
 echo [2/3] 提交更改...
 git commit -m "%commit_msg%"
