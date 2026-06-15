@@ -2186,6 +2186,103 @@ function loadGame(){
   catch(e){return false;}
 }
 
+// ==================== 云端存档系统 ====================
+let cloudGistId=localStorage.getItem('rpg_cloud_gist_id')||'';
+let cloudToken=localStorage.getItem('rpg_cloud_token')||'';
+
+async function ensureCloudToken(){
+  if(cloudToken)return true;
+  const t=prompt('请输入你的GitHub Personal Access Token\n（用于云端存档，只需设置一次）:\n\n如果没有Token，请访问:\nhttps://github.com/settings/tokens\n→ Generate new token (classic)\n→ 勾选 gist 权限\n→ 生成后粘贴到这里');
+  if(!t)return false;
+  cloudToken=t;
+  localStorage.setItem('rpg_cloud_token',t);
+  return true;
+}
+
+async function cloudSave(){
+  if(!State.player||!State.player.name)return addLog('⚠️ 请先开始游戏！','log-warning');
+  if(!await ensureCloudToken())return;
+  const saveData=JSON.stringify(State.player);
+  const filename='infinite-rpg-save.json';
+  try{
+    let resp;
+    if(cloudGistId){
+      // 更新已有Gist
+      resp=await fetch(`https://api.github.com/gists/${cloudGistId}`,{
+        method:'PATCH',
+        headers:{'Authorization':`token ${cloudToken}`,'Content-Type':'application/json'},
+        body:JSON.stringify({files:{[filename]:{content:saveData}}})
+      });
+    }else{
+      // 创建新Gist
+      resp=await fetch('https://api.github.com/gists',{
+        method:'POST',
+        headers:{'Authorization':`token ${cloudToken}`,'Content-Type':'application/json'},
+        body:JSON.stringify({description:'无限流RPG存档',public:false,files:{[filename]:{content:saveData}}})
+      });
+    }
+    if(!resp.ok)throw new Error(await resp.text());
+    const data=await resp.json();
+    cloudGistId=data.id;
+    localStorage.setItem('rpg_cloud_gist_id',cloudGistId);
+    const time=new Date().toLocaleString('zh-CN');
+    addLog(`☁️ 云存档成功！(${time})`,'log-system');
+    addLog('📱 现在可以在手机/其他设备上读取存档了','log-info');
+  }catch(e){
+    addLog(`☁️ 云存档失败: ${e.message}`,'log-warning');
+    // 如果Token无效，清除
+    if(e.message.includes('401')){
+      localStorage.removeItem('rpg_cloud_token');
+      cloudToken='';
+      cloudGistId='';
+      localStorage.removeItem('rpg_cloud_gist_id');
+      addLog('⚠️ Token已失效，请重新设置','log-warning');
+    }
+  }
+}
+
+async function cloudLoad(){
+  if(!await ensureCloudToken())return;
+  if(!cloudGistId){
+    // 尝试列出用户的Gist来找到存档
+    try{
+      const resp=await fetch('https://api.github.com/gists?per_page=100',{
+        headers:{'Authorization':`token ${cloudToken}`}
+      });
+      if(!resp.ok)throw new Error(await resp.text());
+      const gists=await resp.json();
+      const saveGist=gists.find(g=>g.description==='无限流RPG存档'&&g.files&&g.files['infinite-rpg-save.json']);
+      if(!saveGist){
+        addLog('⚠️ 未找到云存档，请先在PC端上传一次存档','log-warning');
+        return;
+      }
+      cloudGistId=saveGist.id;
+      localStorage.setItem('rpg_cloud_gist_id',cloudGistId);
+    }catch(e){
+      addLog(`⚠️ 查找云存档失败: ${e.message}`,'log-warning');
+      return;
+    }
+  }
+  try{
+    const resp=await fetch(`https://api.github.com/gists/${cloudGistId}`,{
+      headers:{'Authorization':`token ${cloudToken}`}
+    });
+    if(!resp.ok)throw new Error(await resp.text());
+    const data=await resp.json();
+    const content=data.files['infinite-rpg-save.json']?.content;
+    if(!content){addLog('⚠️ 云存档内容为空','log-warning');return;}
+    const saveData=JSON.parse(content);
+    if(!confirm('确定要从云端加载存档吗？\n当前本地存档将被覆盖！'))return;
+    Object.assign(State.player,saveData);
+    localStorage.setItem('infiniteRpgSave_v2',JSON.stringify(State.player));
+    recalcStats();applyBuffs();updateTopBar();
+    renderHub();
+    addLog('☁️ 云存档加载成功！欢迎回来！','log-system');
+  }catch(e){
+    addLog(`⚠️ 云存档加载失败: ${e.message}`,'log-warning');
+  }
+}
+
 // ==================== 成就检查 ====================
 function checkAchievements(){
   const p=State.player;
@@ -2707,6 +2804,8 @@ function renderHub(){
         ['💎 与艾莉丝对话','renderAICompanion()','#aa66cc'],
       ])}
       <button class="btn" onclick="saveGame()">💾 保存</button>
+      <button class="btn btn-warning" onclick="cloudSave()">☁️ 云存档</button>
+      <button class="btn btn-info" onclick="cloudLoad()" style="font-size:10px;">📥 读取云存档</button>
       <button class="btn btn-danger" onclick="renderMainMenu()">🚪 主菜单</button>
       <button class="btn" onclick="renderHelp()">❓ 帮助说明</button>
     </div>
