@@ -1,0 +1,2208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数字工厂 - 增量放置小游戏</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  background: #0a0a1a;
+  color: #e0e0e0;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow-x: hidden;
+  padding-top: 20px;
+}
+
+/* 星空背景 */
+.stars{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;}
+.star{position:absolute;background:white;border-radius:50%;animation:twinkle var(--dur) ease-in-out infinite;animation-delay:var(--delay);}
+@keyframes twinkle{0%,100%{opacity:0.3}50%{opacity:1}}
+
+/* 主容器 */
+.container{position:relative;z-index:1;width:100%;max-width:480px;padding:20px 20px 40px;}
+
+/* 标题 */
+.header{text-align:center;margin-bottom:20px;}
+.header h1{font-size:28px;background:linear-gradient(135deg,#ff6b9d,#c44dff,#6ec6ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:4px;}
+.header .subtitle{font-size:13px;color:#777;letter-spacing:2px;}
+.kb-hint{font-size:10px;color:#555;margin-top:4px;letter-spacing:0.5px;}
+
+/* 数字显示区 */
+.display-area{background:linear-gradient(145deg,#111133,#0d0d28);border:2px solid #2a2a5a;border-radius:20px;padding:24px 20px;text-align:center;margin-bottom:12px;position:relative;overflow:hidden;box-shadow:0 0 40px rgba(110,100,255,0.1);}
+.display-area::before{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(circle,rgba(110,100,255,0.05) 0%,transparent 70%);animation:rotate 8s linear infinite;}
+@keyframes rotate{100%{transform:rotate(360deg)}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}50%{transform:translateX(4px)}75%{transform:translateX(-2px)}}
+.number-label{font-size:13px;color:#888;text-transform:uppercase;letter-spacing:3px;margin-bottom:6px;}
+.main-number{font-size:48px;font-weight:900;color:#fff;text-shadow:0 0 30px rgba(196,77,255,0.5);word-break:break-all;transition:transform 0.1s;position:relative;z-index:1;}
+.main-number.pop{animation:pop 0.15s ease-out;}
+@keyframes pop{0%{transform:scale(1.15)}100%{transform:scale(1)}}
+.per-second{font-size:14px;color:#6ec6ff;margin-top:6px;position:relative;z-index:1;}
+
+/* 事件条 */
+.event-bar{background:#1a1a35;border:1px solid #2a2a5a;border-radius:12px;padding:10px 16px;margin-bottom:12px;text-align:center;font-size:13px;font-weight:700;color:#ffcc00;display:none;position:relative;overflow:hidden;z-index:1;animation:eventGlow 1s ease-in-out infinite;}
+.event-bar.active{display:block;}
+.event-bar .event-timer{font-size:11px;color:#aaa;margin-top:3px;}
+.event-bar::after{content:'';position:absolute;bottom:0;left:0;height:3px;background:#ffcc00;border-radius:0 0 12px 12px;width:var(--progress, 100%);transition:width 0.3s linear;}
+@keyframes eventGlow{0%,100%{box-shadow:0 0 8px rgba(255,204,0,0.15)}50%{box-shadow:0 0 20px rgba(255,204,0,0.35)}}
+
+/* 挑战栏 */
+.challenge-bar{background:#1a1a35;border:1px solid #2a2a5a;border-radius:12px;padding:10px 16px;margin-bottom:12px;text-align:center;font-size:13px;font-weight:700;color:#00ff88;display:none;position:relative;overflow:hidden;z-index:1;animation:challengeGlow 1.2s ease-in-out infinite;}
+.challenge-bar.active{display:block;}
+.challenge-bar .challenge-timer{font-size:11px;color:#aaa;margin-top:3px;}
+.challenge-bar .challenge-progress{width:100%;height:4px;background:#2a2a4a;border-radius:2px;margin-top:6px;overflow:hidden;}
+.challenge-bar .challenge-fill{height:100%;background:linear-gradient(90deg,#00ff88,#00cc66);border-radius:2px;transition:width 0.3s;width:0%;}
+@keyframes challengeGlow{0%,100%{box-shadow:0 0 8px rgba(0,255,136,0.1)}50%{box-shadow:0 0 20px rgba(0,255,136,0.25)}}
+
+/* 连击显示 */
+.combo-display{text-align:center;margin-bottom:8px;font-size:14px;font-weight:700;color:#ff6b9d;min-height:20px;transition:all 0.2s;}
+.combo-display.active{animation:comboBounce 0.3s ease-out;}
+@keyframes comboBounce{0%{transform:scale(1.3)}100%{transform:scale(1)}}
+
+/* 进度条 */
+.progress-bar-wrap{background:#1a1a3a;border-radius:10px;height:8px;margin-top:12px;overflow:hidden;position:relative;z-index:1;}
+.progress-bar-fill{height:100%;background:linear-gradient(90deg,#ff6b9d,#c44dff);border-radius:10px;transition:width 0.3s;}
+
+/* 点击按钮 */
+.click-area{text-align:center;margin-bottom:20px;}
+.click-btn{width:140px;height:140px;border-radius:50%;border:3px solid #c44dff;background:radial-gradient(circle at 40% 40%,#2a1a4a,#0d0d28);color:#fff;font-size:18px;font-weight:700;cursor:pointer;transition:all 0.1s;box-shadow:0 0 30px rgba(196,77,255,0.3);position:relative;user-select:none;-webkit-tap-highlight-color:transparent;}
+.click-btn:hover{box-shadow:0 0 50px rgba(196,77,255,0.5);transform:scale(1.03);}
+.click-btn:active{transform:scale(0.92);box-shadow:0 0 60px rgba(196,77,255,0.7);}
+.click-btn .click-icon{font-size:36px;display:block;}
+.click-btn .click-text{font-size:12px;color:#aaa;margin-top:4px;}
+
+/* 浮动数字 */
+.float-number{position:fixed;pointer-events:none;font-weight:900;font-size:22px;color:#c44dff;z-index:100;animation:floatUp 0.8s ease-out forwards;}
+.float-number.crit{color:#ff6b9d;font-size:32px;}
+@keyframes floatUp{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-80px) scale(1.5)}}
+
+/* 粒子 */
+.particle{position:fixed;pointer-events:none;width:6px;height:6px;border-radius:50%;background:#c44dff;z-index:99;animation:particleBurst 0.5s ease-out forwards;}
+@keyframes particleBurst{0%{opacity:1;transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(var(--tx),var(--ty)) scale(0)}}
+
+/* 里程碑弹出 */
+.milestone-popup{position:fixed;top:20%;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#2a1a4a,#1a1a40);border:2px solid #ffcc00;border-radius:16px;padding:16px 28px;color:#ffcc00;font-size:16px;font-weight:700;text-align:center;z-index:200;pointer-events:none;animation:milestoneIn 0.5s ease-out;box-shadow:0 0 40px rgba(255,204,0,0.3);}
+.milestone-popup .milestone-icon{font-size:32px;display:block;margin-bottom:4px;}
+.milestone-popup .milestone-text{font-size:14px;color:#fff;}
+
+/* 里程碑彩色纸屑 */
+.confetti{position:fixed;z-index:199;pointer-events:none;border-radius:3px;animation:confettiBurst 1.2s ease-out forwards;}
+@keyframes confettiBurst{0%{opacity:1;transform:translate(0,0) rotate(0deg)}100%{opacity:0;transform:translate(var(--tx),var(--ty)) rotate(var(--rot))}}
+@keyframes milestoneIn{0%{opacity:0;transform:translateX(-50%) translateY(20px) scale(0.8)}100%{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}
+@keyframes milestoneOut{0%{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}100%{opacity:0;transform:translateX(-50%) translateY(-20px) scale(0.8)}}
+
+/* 标签切换 */
+.tabs{display:flex;gap:4px;margin-bottom:12px;}
+.tab{flex:1;padding:10px;background:#111133;border:1px solid #2a2a5a;border-radius:10px;color:#888;cursor:pointer;text-align:center;font-size:14px;font-weight:600;transition:all 0.2s;}
+.tab:hover{color:#ccc;}
+.tab.active{background:#1a1a4a;border-color:#c44dff;color:#c44dff;}
+.tab.prestige-tab.active{background:#1a1a30;border-color:#ffcc00;color:#ffcc00;}
+
+/* 面板 */
+.panel{display:none;}
+.panel.active{display:block;}
+
+/* 升级卡片 */
+.upgrade-list{display:flex;flex-direction:column;gap:8px;margin-bottom:10px;}
+.upgrade-card{background:#111133;border:1px solid #2a2a5a;border-radius:14px;padding:14px 16px;cursor:pointer;transition:all 0.25s;display:flex;justify-content:space-between;align-items:center;position:relative;overflow:hidden;-webkit-tap-highlight-color:transparent;}
+.upgrade-card:hover{border-color:#c44dff;box-shadow:0 0 15px rgba(196,77,255,0.15);}
+.upgrade-card:active{transform:scale(0.98);}
+.upgrade-card.locked{opacity:0.4;cursor:not-allowed;}
+.upgrade-card.locked:hover{border-color:#2a2a5a;box-shadow:none;}
+.upgrade-card.affordable{border-color:#ffcc00;box-shadow:0 0 18px rgba(255,204,0,0.2);animation:affordablePulse 1.5s ease-in-out infinite;}
+.upgrade-card.affordable:hover{border-color:#ffaa00;box-shadow:0 0 28px rgba(255,204,0,0.35);}
+.upgrade-card.best-value{border-color:#00ff88;box-shadow:0 0 18px rgba(0,255,136,0.25);}
+.upgrade-card.best-value.affordable{border-color:#00ff88;box-shadow:0 0 22px rgba(0,255,136,0.35);animation:affordablePulse 1.5s ease-in-out infinite;}
+.upgrade-card.best-value::before{content:'⭐ 推荐';position:absolute;top:6px;right:8px;font-size:11px;color:#00ff88;font-weight:700;z-index:2;}
+@keyframes affordablePulse{0%,100%{box-shadow:0 0 12px rgba(255,204,0,0.15)}50%{box-shadow:0 0 22px rgba(255,204,0,0.3)}}
+.upgrade-card.maxed{opacity:0.5;cursor:default;border-color:#2a2a5a!important;}
+.upgrade-card .info{flex:1;min-width:0;}
+.upgrade-card .name{font-size:15px;font-weight:700;color:#fff;}
+.upgrade-card .desc{font-size:12px;color:#888;margin-top:3px;}
+.upgrade-card .cost-wrap{text-align:right;margin-left:12px;flex-shrink:0;}
+.upgrade-card .cost{font-size:14px;font-weight:700;color:#ffcc00;}
+.upgrade-card .level{font-size:11px;color:#6ec6ff;margin-top:3px;}
+.upgrade-card .cost.insufficient{color:#ff6666;}
+
+/* 全部购买按钮 */
+.buy-all-wrap{text-align:center;}
+.buy-all-btn{width:100%;padding:12px;background:linear-gradient(135deg,#ffaa00,#ff6600);border:none;border-radius:12px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;transition:all 0.2s;}
+.buy-all-btn:hover{filter:brightness(1.1);transform:translateY(-1px);}
+.buy-all-btn:active{transform:scale(0.97);}
+.buy-all-btn:disabled{opacity:0.3;cursor:not-allowed;filter:none;transform:none;}
+
+/* 自动购买按钮 */
+.auto-buy-btn{width:100%;padding:10px;margin-top:8px;background:linear-gradient(135deg,#555,#444);border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;}
+.auto-buy-btn:hover{filter:brightness(1.1);transform:translateY(-1px);}
+.auto-buy-btn:active{transform:scale(0.97);}
+
+/* 主题选择器 */
+.theme-selector{display:flex;gap:6px;margin-bottom:12px;justify-content:center;}
+.theme-dot{width:28px;height:28px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all 0.2s;position:relative;}
+.theme-dot:hover{transform:scale(1.15);}
+.theme-dot.active{border-color:#fff;box-shadow:0 0 8px rgba(255,255,255,0.5);}
+.theme-dot.locked{opacity:0.4;cursor:not-allowed;filter:grayscale(0.8);}
+.theme-dot.locked::after{content:'🔒';position:absolute;font-size:12px;top:50%;left:50%;transform:translate(-50%,-50%);}
+
+/* 转生面板 */
+.prestige-header{text-align:center;margin-bottom:16px;padding:16px;background:#111133;border:1px solid #2a2a5a;border-radius:14px;}
+.prestige-header .prestige-title{font-size:18px;font-weight:700;color:#ffcc00;margin-bottom:6px;}
+.prestige-header .prestige-desc{font-size:13px;color:#888;line-height:1.6;}
+.prestige-header .prestige-gain{font-size:16px;color:#6ec6ff;margin-top:8px;font-weight:700;}
+.prestige-btn{width:100%;padding:14px;background:linear-gradient(135deg,#ffcc00,#ff8800);border:none;border-radius:14px;color:#0a0a1a;font-size:16px;font-weight:700;cursor:pointer;transition:all 0.2s;margin-bottom:10px;}
+.prestige-btn:hover{filter:brightness(1.1);transform:translateY(-1px);}
+.prestige-btn:active{transform:scale(0.97);}
+.prestige-btn:disabled{opacity:0.3;cursor:not-allowed;filter:none;transform:none;}
+.prestige-unlock{font-size:12px;color:#888;text-align:center;margin-bottom:10px;}
+
+/* 转生可用发光 */
+body.prestige-ready .container{box-shadow:0 0 40px rgba(255,215,0,0.3),0 0 80px rgba(255,215,0,0.15);transition:box-shadow 1s;}
+body.prestige-ready .golden-number{animation:goldenGlow 0.8s ease-in-out infinite;}
+@keyframes goldenGlow{0%,100%{box-shadow:0 0 15px rgba(255,215,0,0.3)}50%{box-shadow:0 0 30px rgba(255,215,0,0.6),0 0 60px rgba(255,215,0,0.3)}}
+
+/* 声望商店 */
+.prestige-shop-title{font-size:15px;font-weight:700;color:#ffcc00;margin-bottom:10px;text-align:center;}
+.prestige-card{background:#111133;border:1px solid #2a2a5a;border-radius:14px;padding:14px 16px;margin-bottom:8px;cursor:pointer;transition:all 0.25s;display:flex;justify-content:space-between;align-items:center;-webkit-tap-highlight-color:transparent;}
+.prestige-card:hover{border-color:#ffcc00;box-shadow:0 0 15px rgba(255,204,0,0.15);}
+.prestige-card:active{transform:scale(0.98);}
+.prestige-card.locked{opacity:0.4;cursor:not-allowed;}
+.prestige-card.locked:hover{border-color:#2a2a5a;box-shadow:none;}
+.prestige-card .info{flex:1;min-width:0;}
+.prestige-card .pname{font-size:15px;font-weight:700;color:#fff;}
+.prestige-card .pdesc{font-size:12px;color:#888;margin-top:3px;}
+.prestige-card .pcost{font-size:14px;font-weight:700;color:#ffcc00;margin-left:12px;flex-shrink:0;}
+.prestige-card .plvl{font-size:11px;color:#6ec6ff;margin-top:3px;text-align:right;}
+
+/* 成就 */
+.achievement-card{background:#111133;border:1px solid #2a2a5a;border-radius:14px;padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;transition:all 0.3s;}
+.achievement-card.unlocked{border-color:#ffcc00;background:#1a1a30;box-shadow:0 0 15px rgba(255,204,0,0.1);}
+.achievement-card .icon{font-size:28px;width:40px;text-align:center;}
+.achievement-card .aname{font-size:14px;font-weight:700;}
+.achievement-card .adesc{font-size:11px;color:#888;margin-top:2px;}
+
+/* 统计 */
+.stat-row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #1a1a3a;font-size:13px;}
+.stat-row .sval{color:#6ec6ff;font-weight:600;}
+
+/* 重置按钮 */
+.reset-btn{width:100%;padding:10px;margin-top:16px;background:transparent;border:1px solid #ff4444;color:#ff4444;border-radius:10px;font-size:13px;cursor:pointer;transition:all 0.2s;-webkit-tap-highlight-color:transparent;}
+.reset-btn:hover{background:rgba(255,68,68,0.1);}
+
+/* 导入导出按钮 */
+.import-export-btn{flex:1;padding:8px;background:linear-gradient(135deg,#2a2a4a,#1a1a3a);border:1px solid #3a3a6a;border-radius:10px;color:#aaa;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s;}
+.import-export-btn:hover{color:#fff;border-color:#6a6aff;background:linear-gradient(135deg,#3a3a6a,#2a2a4a);}
+
+/* 自定义确认弹窗 */
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:500;display:flex;justify-content:center;align-items:center;animation:fadeIn 0.2s ease-out;}
+@keyframes fadeIn{0%{opacity:0}100%{opacity:1}}
+.modal-box{background:#1a1a35;border:1px solid #3a3a6a;border-radius:20px;padding:28px 24px;text-align:center;max-width:340px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.5);animation:modalPop 0.25s ease-out;}
+@keyframes modalPop{0%{transform:scale(0.85);opacity:0}100%{transform:scale(1);opacity:1}}
+.modal-box .modal-icon{font-size:40px;margin-bottom:12px;}
+.modal-box .modal-title{font-size:18px;font-weight:700;color:#fff;margin-bottom:8px;}
+.modal-box .modal-text{font-size:14px;color:#aaa;margin-bottom:20px;line-height:1.5;}
+.modal-buttons{display:flex;gap:10px;}
+.modal-btn{flex:1;padding:12px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;transition:all 0.2s;border:none;}
+.modal-btn-cancel{background:#2a2a4a;color:#ccc;}
+.modal-btn-cancel:hover{background:#3a3a5a;}
+.modal-btn-confirm{background:#ff4444;color:#fff;}
+.modal-btn-confirm:hover{background:#ff5555;}
+.modal-btn-gold{background:linear-gradient(135deg,#ffcc00,#ff8800);color:#0a0a1a;}
+.modal-btn-gold:hover{filter:brightness(1.1);}
+
+/* 离线收益弹窗 */
+.offline-popup{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:500;display:flex;justify-content:center;align-items:center;animation:fadeIn 0.2s ease-out;}
+.offline-box{background:#1a1a35;border:1px solid #3a3a6a;border-radius:20px;padding:28px 24px;text-align:center;max-width:340px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.5);animation:modalPop 0.25s ease-out;}
+.offline-box .offline-icon{font-size:40px;margin-bottom:12px;}
+.offline-box .offline-title{font-size:18px;font-weight:700;color:#6ec6ff;margin-bottom:8px;}
+.offline-box .offline-text{font-size:14px;color:#aaa;margin-bottom:6px;line-height:1.5;}
+.offline-box .offline-amount{font-size:28px;font-weight:900;color:#ffcc00;margin-bottom:16px;}
+.offline-btn{flex:1;padding:12px;background:linear-gradient(135deg,#6ec6ff,#c44dff);border:none;border-radius:14px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s;}
+.offline-btn:hover{filter:brightness(1.1);}
+.offline-btn-double{background:linear-gradient(135deg,#ffaa00,#ff6600);}
+.offline-double{font-size:12px;color:#ffaa00;margin-top:4px;}
+
+/* 闲置指示器 */
+.idle-indicator{text-align:center;margin-bottom:8px;font-size:13px;font-weight:700;color:#6ec6ff;min-height:20px;display:none;animation:idlePulse 2s ease-in-out infinite;}
+@keyframes idlePulse{0%,100%{opacity:0.6}50%{opacity:1}}
+
+/* 金色数字 */
+.golden-number{position:fixed;z-index:150;background:linear-gradient(135deg,#ffd700,#ff8c00);color:#1a1a00;padding:12px 20px;border-radius:50px;font-size:16px;font-weight:900;cursor:pointer;animation:goldenFloat 2s ease-in-out infinite, goldenGlow 0.8s ease-in-out infinite;box-shadow:0 0 30px rgba(255,215,0,0.6);user-select:none;-webkit-tap-highlight-color:transparent;text-shadow:0 1px 2px rgba(255,255,255,0.3);}
+.golden-number:hover{transform:scale(1.1);box-shadow:0 0 50px rgba(255,215,0,0.9);}
+@keyframes goldenFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+@keyframes goldenGlow{0%,100%{box-shadow:0 0 20px rgba(255,215,0,0.4)}50%{box-shadow:0 0 40px rgba(255,215,0,0.8)}}
+@keyframes goldenFadeOut{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(0.5)}}
+
+/* 每日任务 */
+.section-title{font-size:15px;font-weight:700;color:#6ec6ff;margin-bottom:12px;text-align:center;}
+.quest-card{background:#111133;border:1px solid #2a2a5a;border-radius:14px;padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:10px;transition:all 0.3s;}
+.quest-card.completable{border-color:#6ec6ff;box-shadow:0 0 12px rgba(110,198,255,0.15);animation:affordablePulse 1.5s ease-in-out infinite;}
+.quest-card.claimed{opacity:0.5;}
+.quest-info{flex:1;min-width:0;}
+.quest-name{font-size:14px;font-weight:700;color:#fff;}
+.quest-desc{font-size:11px;color:#888;margin-top:2px;}
+.quest-progress-bar{background:#1a1a3a;border-radius:6px;height:6px;margin-top:6px;overflow:hidden;}
+.quest-progress-fill{height:100%;background:linear-gradient(90deg,#6ec6ff,#c44dff);border-radius:6px;transition:width 0.3s;}
+.quest-progress-text{font-size:11px;color:#888;margin-top:3px;}
+.quest-reward{flex-shrink:0;}
+.quest-claim-btn{background:linear-gradient(135deg,#6ec6ff,#c44dff);border:none;border-radius:8px;color:#fff;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s;white-space:nowrap;}
+.quest-claim-btn:hover{filter:brightness(1.15);transform:scale(1.03);}
+.quest-claim-btn:active{transform:scale(0.95);}
+.quest-pending{color:#ffcc00;font-size:13px;font-weight:700;}
+.quest-done{font-size:20px;}
+
+/* 响应式 */
+@media(max-width:400px){.main-number{font-size:32px}.click-btn{width:110px;height:110px;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}.golden-number{font-size:13px;padding:10px 16px}.tab-btn{font-size:13px;padding:8px 12px}.container{padding:12px 12px 30px}}
+
+/* 防止移动端双击缩放 */
+.click-btn,.upgrade-card,.prestige-card,.tab-btn,.golden-number{touch-action:manipulation;}
+
+/* 成就解锁弹窗 */
+.achievement-toast{position:fixed;top:10%;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#1a1a40,#2a1a4a);border:2px solid #ffcc00;border-radius:16px;padding:14px 24px;z-index:300;pointer-events:none;animation:toastIn 0.4s ease-out,toastOut 0.4s 2.5s ease-in forwards;box-shadow:0 0 30px rgba(255,204,0,0.3);display:flex;align-items:center;gap:10px;white-space:nowrap;}
+.achievement-toast .toast-icon{font-size:28px;}
+.achievement-toast .toast-info{text-align:left;}
+.achievement-toast .toast-label{font-size:11px;color:#ffcc00;text-transform:uppercase;letter-spacing:2px;}
+.achievement-toast .toast-name{font-size:15px;font-weight:700;color:#fff;}
+
+/* 事件提示 */
+.event-toast{position:fixed;top:17%;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#2a1a1a,#3a2a1a);border:2px solid #ff8800;border-radius:16px;padding:12px 22px;z-index:300;pointer-events:none;animation:toastIn 0.4s ease-out;box-shadow:0 0 30px rgba(255,136,0,0.3);display:flex;align-items:center;gap:10px;white-space:nowrap;}
+.event-toast .toast-icon{font-size:24px;}
+.event-toast .toast-info{text-align:left;}
+.event-toast .toast-label{font-size:11px;color:#ff8800;text-transform:uppercase;letter-spacing:2px;}
+.event-toast .toast-name{font-size:14px;font-weight:700;color:#fff;}
+@keyframes toastIn{0%{opacity:0;transform:translateX(-50%) translateY(-30px)}100%{opacity:1;transform:translateX(-50%) translateY(0)}}
+@keyframes toastOut{0%{opacity:1;transform:translateX(-50%) translateY(0)}100%{opacity:0;transform:translateX(-50%) translateY(-30px)}}
+
+/* 数字瀑布 */
+.digit-fall{position:fixed;pointer-events:none;z-index:50;font-size:14px;font-weight:700;color:#6ec6ff;text-shadow:0 0 6px rgba(110,198,255,0.5);animation:digitFall var(--dur) linear forwards;opacity:0.6;}
+@keyframes digitFall{0%{transform:translateY(-20px) rotate(0deg);opacity:0.8}100%{transform:translateY(105vh) rotate(var(--rot));opacity:0}}
+
+/* 点击涟漪 */
+.click-btn .ripple{position:absolute;border-radius:50%;background:rgba(196,77,255,0.4);transform:scale(0);animation:rippleEffect 0.6s ease-out forwards;pointer-events:none;}
+@keyframes rippleEffect{to{transform:scale(4);opacity:0}}
+
+/* 数字速度指示器 */
+.velocity-indicator{text-align:center;margin-bottom:6px;font-size:12px;font-weight:600;min-height:18px;transition:color 0.5s;}
+.velocity-indicator.up{color:#4cff4c;}
+.velocity-indicator.down{color:#ff6666;}
+.velocity-indicator.stable{color:#888;}
+
+/* 升级购买反馈 */
+.upgrade-toast{position:fixed;bottom:15%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);border:1px solid #6ec6ff;border-radius:24px;padding:8px 20px;z-index:250;pointer-events:none;animation:toastIn 0.3s ease-out,toastOut 0.3s 0.8s ease-in forwards;font-size:13px;color:#6ec6ff;font-weight:700;white-space:nowrap;}
+</style>
+</head>
+<body>
+
+<div class="stars" id="stars"></div>
+<div id="floatLayer" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:100;"></div>
+
+<div class="container">
+  <div class="header">
+    <h1>🔢 数字工厂</h1>
+    <div class="subtitle">I D L E · I N C R E M E N T A L</div>
+    <div class="kb-hint">空格/回车 点击 | 1-5 切换面板 | M 音效 | Ctrl+B 自动购买</div>
+  </div>
+  <div class="theme-selector" id="themeSelector"></div>
+
+  <!-- 数字显示 -->
+  <div class="display-area">
+    <div class="number-label">数字总量</div>
+    <div class="main-number" id="mainNumber">0</div>
+    <div class="per-second" id="perSecond">每秒 +0</div>
+    <div class="velocity-indicator stable" id="velocityIndicator"></div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="progressBar" style="width:0%"></div>
+    </div>
+  </div>
+
+  <!-- 事件条 -->
+  <div class="event-bar" id="eventBar">
+    <span id="eventText"></span>
+    <div class="event-timer" id="eventTimer"></div>
+  </div>
+
+  <!-- 挑战栏 -->
+  <div class="challenge-bar" id="challengeBar">
+    <span id="challengeText"></span>
+    <div class="challenge-progress"><div class="challenge-fill" id="challengeFill"></div></div>
+    <div class="challenge-timer" id="challengeTimer"></div>
+  </div>
+
+  <!-- 连击显示 -->
+  <div class="combo-display" id="comboDisplay"></div>
+
+  <!-- 闲置指示器 -->
+  <div class="idle-indicator" id="idleIndicator"></div>
+
+  <!-- 点击按钮 -->
+  <div class="click-area">
+    <button class="click-btn" id="clickBtn">
+      <span class="click-icon">⚡</span>
+      <span id="clickPowerText">+1</span>
+      <span class="click-text">点 击</span>
+    </button>
+  </div>
+
+  <!-- 标签页 -->
+  <div class="tabs">
+    <div class="tab active" data-tab="upgrades">升级</div>
+    <div class="tab" data-tab="daily">每日</div>
+    <div class="tab prestige-tab" data-tab="prestige">转生</div>
+    <div class="tab" data-tab="achievements">成就</div>
+    <div class="tab" data-tab="stats">统计</div>
+  </div>
+
+  <!-- 升级面板 -->
+  <div class="panel active" id="panel-upgrades">
+    <div class="upgrade-list" id="upgradeList"></div>
+    <div class="buy-all-wrap">
+      <button class="buy-all-btn" id="buyAllBtn">购买全部可购买升级</button>
+    </div>
+  </div>
+
+  <!-- 每日任务面板 -->
+  <div class="panel" id="panel-daily"></div>
+
+  <!-- 转生面板 -->
+  <div class="panel" id="panel-prestige">
+    <div class="prestige-header">
+      <div class="prestige-title">🌟 转生系统</div>
+      <div class="prestige-desc">重置所有普通进度，换取永久声望加成。<br>声望点数可购买无法通过普通升级获得的永久能力。</div>
+      <div class="prestige-gain" id="prestigeGain">可获得声望点数: 0</div>
+    </div>
+    <button class="prestige-btn" id="prestigeBtn" disabled>需要 1.00M 数字才能转生</button>
+    <div class="prestige-unlock" id="prestigeUnlock">解锁条件: 累计数字达到 1.00M</div>
+    <div class="prestige-shop-title">🏪 声望商店</div>
+    <div id="prestigeShop"></div>
+    <div class="prestige-shop-title" style="margin-top:16px;">📜 转生记录</div>
+    <div id="prestigeHistory"></div>
+  </div>
+
+  <!-- 成就面板 -->
+  <div class="panel" id="panel-achievements"></div>
+
+  <!-- 统计面板 -->
+  <div class="panel" id="panel-stats">
+    <div class="stat-row"><span>总点击数</span><span class="sval" id="statClicks">0</span></div>
+    <div class="stat-row"><span>总产生数字</span><span class="sval" id="statTotal">0</span></div>
+    <div class="stat-row"><span>总升级次数</span><span class="sval" id="statUpgrades">0</span></div>
+    <div class="stat-row"><span>暴击次数</span><span class="sval" id="statCrits">0</span></div>
+    <div class="stat-row"><span>游戏时间</span><span class="sval" id="statPlaytime">0秒</span></div>
+    <div class="stat-row"><span>转生次数</span><span class="sval" id="statPrestige">0</span></div>
+    <div class="stat-row"><span>声望点数</span><span class="sval" id="statPP">0</span></div>
+    <hr style="border-color:#2a2a5a;margin:8px 0;">
+    <div class="stat-row"><span>🏆 最佳单轮数字</span><span class="sval" id="statBestRun">0</span></div>
+    <div class="stat-row"><span>⏱️ 最快转生</span><span class="sval" id="statFastest">-</span></div>
+    <div class="stat-row"><span>🔥 最佳连击</span><span class="sval" id="statBestCombo">0</span></div>
+    <div class="stat-row"><span>🎯 挑战完成</span><span class="sval" id="statChallenges">0</span></div>
+    <button class="reset-btn" id="resetBtn">重置游戏数据</button>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="import-export-btn" id="exportBtn">📤 导出存档</button>
+      <button class="import-export-btn" id="importBtn">📥 导入存档</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== 游戏数据 ==========
+const game = {
+  numbers: 0,
+  totalGenerated: 0,
+  totalClicks: 0,
+  totalCrits: 0,
+  totalUpgrades: 0,
+  playTime: 0,
+  clickPower: 1,
+  critChance: 0,
+  critMultiplier: 2,
+  autoPerSec: 0,
+  globalMultiplier: 1,
+  luckChance: 0,           // 幸运掉落几率
+  luckMultiplier: 5,       // 幸运掉落倍率
+  comboWindow: 1.0,        // 连击时间窗口（秒）
+  idleTime: 0,             // 闲置时间
+  goldenTimer: 20,         // 金色数字计时器
+  upgrades: {},
+  achievements: {},
+  // 转生
+  prestigePoints: 0,
+  prestigeCount: 0,
+  prestigeBonus: 0,        // 声望带来的永久全局倍率加成
+  prestigeUpgrades: {},
+  prestigeBestRun: 0,      // 单次转生最高数字
+  prestigeFastest: 0,      // 最快转生用时(秒)
+  prestigeHistory: [],     // 转生记录 [{time, total, gain, duration}]
+  // 事件
+  eventActive: false,
+  eventType: null,
+  eventTimer: 0,
+  eventCooldown: 0,
+  totalEvents: 0,          // 累计触发事件次数
+  // 挑战
+  challengeActive: false,
+  challengeType: null,
+  challengeTimer: 0,
+  challengeProgress: 0,
+  challengeTarget: 0,
+  challengeCooldown: 30,
+  // 连击
+  combo: 0,
+  lastClickTime: 0,
+  // 其他
+  autoBuy: false,          // 自动购买开关
+  theme: 'default',         // 当前主题
+  soundEnabled: true,      // 音效开关
+  scientificNotation: false, // 科学计数法
+  // 统计扩展
+  bestCombo: 0,
+  challengesCompleted: 0,
+  challengesFailed: 0,
+  // 存档
+  lastSaveTime: Date.now(),
+  lastOnlineTime: Date.now(),
+};
+
+// ========== 音效系统 ==========
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+  }
+  return audioCtx;
+}
+
+function playBeep(freq, duration, type, vol) {
+  if (!game.soundEnabled) return;
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.setValueAtTime(freq, ctx.currentTime);
+  gain.gain.setValueAtTime(vol || 0.08, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + duration);
+}
+
+function sfxClick() { playBeep(600, 0.08, 'sine', 0.06); }
+function sfxCrit() { playBeep(900, 0.12, 'square', 0.08); playBeep(1200, 0.08, 'square', 0.05); }
+function sfxUpgrade() { playBeep(440, 0.1, 'triangle', 0.07); playBeep(660, 0.1, 'triangle', 0.07); playBeep(880, 0.15, 'triangle', 0.06); }
+function sfxAchievement() { playBeep(523, 0.15, 'sine', 0.08); playBeep(659, 0.15, 'sine', 0.08); playBeep(784, 0.2, 'sine', 0.08); playBeep(1047, 0.3, 'sine', 0.06); }
+function sfxGolden() { playBeep(800, 0.1, 'sine', 0.07); playBeep(1000, 0.1, 'sine', 0.07); playBeep(1200, 0.15, 'sine', 0.05); }
+function sfxPrestige() { playBeep(200, 0.3, 'triangle', 0.1); playBeep(300, 0.3, 'triangle', 0.1); playBeep(400, 0.4, 'triangle', 0.08); playBeep(600, 0.5, 'triangle', 0.06); }
+function sfxEvent() { playBeep(300, 0.2, 'sawtooth', 0.06); playBeep(500, 0.2, 'sawtooth', 0.06); playBeep(700, 0.3, 'sawtooth', 0.05); }
+
+// ========== 升级定义 ==========
+const upgradeDefs = [
+  { id: 'click1', name: '点击强化 I',   desc: '每次点击 +1',      baseCost: 10,    costGrowth: 1.5, maxLevel: 999, effect(lvl) { game.clickPower += 1; } },
+  { id: 'click2', name: '点击强化 II',  desc: '每次点击 +5',      baseCost: 100,   costGrowth: 1.6, maxLevel: 500, effect(lvl) { game.clickPower += 5; } },
+  { id: 'click3', name: '超级点击',     desc: '每次点击 +25',     baseCost: 2000,  costGrowth: 1.7, maxLevel: 200, effect(lvl) { game.clickPower += 25; } },
+  { id: 'auto1',  name: '初级发电机',   desc: '每秒自动 +1',      baseCost: 30,    costGrowth: 1.4, maxLevel: 999, effect(lvl) { game.autoPerSec += 1; } },
+  { id: 'auto2',  name: '中级发电机',   desc: '每秒自动 +8',      baseCost: 500,   costGrowth: 1.5, maxLevel: 300, effect(lvl) { game.autoPerSec += 8; } },
+  { id: 'auto3',  name: '量子反应堆',   desc: '每秒自动 +60',     baseCost: 10000, costGrowth: 1.55, maxLevel: 150, effect(lvl) { game.autoPerSec += 60; } },
+  { id: 'crit1',  name: '暴击几率',     desc: '+5% 暴击率',       baseCost: 200,   costGrowth: 1.8, maxLevel: 15,  effect(lvl) { game.critChance = Math.min(lvl * 5, 75); } },
+  { id: 'crit2',  name: '暴击强化',     desc: '暴击倍率 +0.5',    baseCost: 5000,  costGrowth: 2.0, maxLevel: 10,  effect(lvl) { game.critMultiplier = 2 + lvl * 0.5; } },
+  { id: 'mult1',  name: '全局加成',     desc: '所有产出 x1.5',    baseCost: 50000, costGrowth: 3.0, maxLevel: 8,   effect(lvl) { game.globalMultiplier = Math.pow(1.5, lvl); } },
+  { id: 'luck1',  name: '幸运掉落',     desc: '+3% 几率额外 x5',  baseCost: 3000,  costGrowth: 2.0, maxLevel: 10,  effect(lvl) { game.luckChance = Math.min(lvl * 3, 30); } },
+  { id: 'luck2',  name: '幸运强化',     desc: '幸运掉落倍率 +2',  baseCost: 20000, costGrowth: 2.5, maxLevel: 8,   effect(lvl) { game.luckMultiplier = 5 + lvl * 2; } },
+  { id: 'combo1', name: '连击延长',     desc: '连击窗口 +0.2秒',  baseCost: 8000,  costGrowth: 2.2, maxLevel: 10,  effect(lvl) { game.comboWindow = 1.0 + lvl * 0.2; } },
+  { id: 'autoclick', name: '自动点击器',  desc: '自动点击(50%效率)',  baseCost: 50000, costGrowth: 2.5, maxLevel: 10,  effect(lvl) { /* 由 updateAutoClicker 处理 */ } },
+  { id: 'idle1',    name: '闲置增殖',    desc: '闲置时自动产出 +20%', baseCost: 30000, costGrowth: 2.0, maxLevel: 5,   effect(lvl) { /* 在 gameLoop 中应用 */ } },
+  { id: 'click4',  name: '终极点击',    desc: '每次点击 +100',        baseCost: 50000,  costGrowth: 1.8, maxLevel: 100, effect(lvl) { game.clickPower += 100; } },
+  { id: 'auto4',   name: '反物质引擎',   desc: '每秒自动 +500',       baseCost: 200000, costGrowth: 1.6, maxLevel: 80,  effect(lvl) { game.autoPerSec += 500; } },
+  { id: 'offline1',name: '离线加速',    desc: '离线产出效率 x1.5',   baseCost: 100000, costGrowth: 2.5, maxLevel: 5,   effect(lvl) { /* 在 showOfflineEarnings 中使用 */ } },
+];
+
+// ========== 声望升级定义 ==========
+const prestigeUpgradeDefs = [
+  { id: 'p_mult',   name: '声望加成',   desc: '永久全局产出 x2',        baseCost: 1,  costGrowth: 2,  maxLevel: 20, effect(lvl) { game.prestigeBonus = lvl; } },
+  { id: 'p_start',  name: '初始资金',   desc: '转生后初始数字 x10',     baseCost: 2,  costGrowth: 2.5, maxLevel: 10, effect(lvl) { /* 转生时应用 */ } },
+  { id: 'p_click',  name: '声望点击',   desc: '点击力量永久 +10',       baseCost: 3,  costGrowth: 2,  maxLevel: 15, effect(lvl) { /* 转生时应用 */ } },
+  { id: 'p_auto',   name: '声望引擎',   desc: '自动产出永久 +5/秒',     baseCost: 5,  costGrowth: 2.5, maxLevel: 20, effect(lvl) { /* 转生时应用 */ } },
+  { id: 'p_event',  name: '事件达人',   desc: '随机事件频率 +20%',      baseCost: 3,  costGrowth: 2,  maxLevel: 10, effect(lvl) { /* 动态计算 */ } },
+  { id: 'p_combo',  name: '连击大师',   desc: '初始连击窗口 +0.5秒',    baseCost: 4,  costGrowth: 2.5, maxLevel: 8,  effect(lvl) { /* 转生时应用 */ } },
+  { id: 'p_golden', name: '金色嗅觉',   desc: '金色数字出现频率 +25%',  baseCost: 6,  costGrowth: 2,  maxLevel: 8,  effect(lvl) { /* 在 updateGoldenNumber 中使用 */ } },
+  { id: 'p_luck',   name: '幸运之星',   desc: '基础幸运掉落几率 +3%',   baseCost: 4,  costGrowth: 2,  maxLevel: 10, effect(lvl) { /* 转生时应用 */ } },
+  { id: 'p_idle',   name: '闲置大师',   desc: '闲置奖励倍率 +0.3/级',   baseCost: 5,  costGrowth: 2.5, maxLevel: 10, effect(lvl) { /* 在 getIdleBonus 中使用 */ } },
+  { id: 'p_offline',name: '离线效率',   desc: '离线收益比例 +10%',      baseCost: 8,  costGrowth: 2,  maxLevel: 10, effect(lvl) { /* 在 showOfflineEarnings 中使用 */ } },
+  { id: 'p_fortune',name: '财源滚滚',   desc: '全局产出额外 +25%',       baseCost: 10, costGrowth: 3,  maxLevel: 8,  effect(lvl) { /* 动态计算 */ } },
+  { id: 'p_critDmg',name: '致命一击',   desc: '暴击倍率永久 +1',         baseCost: 7,  costGrowth: 2.5, maxLevel: 10, effect(lvl) { /* 转生时应用 */ } },
+  { id: 'p_goldenM',name: '金色倍增',   desc: '金色数字奖励 x2/级',     baseCost: 12, costGrowth: 3,  maxLevel: 5,  effect(lvl) { /* 在 updateGoldenNumber 中使用 */ } },
+  { id: 'p_chall',  name: '挑战达人',   desc: '挑战奖励 +50%',          baseCost: 8,  costGrowth: 2.5, maxLevel: 8,  effect(lvl) { /* 在 completeChallenge 中使用 */ } },
+  { id: 'p_eventR', name: '事件奖励',   desc: '随机事件奖励倍率 +0.5',  baseCost: 6,  costGrowth: 2.5, maxLevel: 10, effect(lvl) { /* 在 getEventMultiplier 中使用 */ } },
+];
+
+function getPrestigeUpgradeCost(def, level) {
+  return Math.floor(def.baseCost * Math.pow(def.costGrowth, level));
+}
+
+// ========== 成就定义 ==========
+const achievementDefs = [
+  { id: 'first_click', name: '初次点击',   desc: '完成第一次点击',          icon: '👆', check: () => game.totalClicks >= 1 },
+  { id: 'num_100',     name: '百位数',     desc: '累计达到 100',           icon: '💯', check: () => game.totalGenerated >= 100 },
+  { id: 'num_10k',     name: '万元户',     desc: '累计达到 10,000',        icon: '💰', check: () => game.totalGenerated >= 10000 },
+  { id: 'num_1m',      name: '百万富翁',   desc: '累计达到 1,000,000',     icon: '🏦', check: () => game.totalGenerated >= 1000000 },
+  { id: 'num_1b',      name: '十亿大亨',   desc: '累计达到 1,000,000,000', icon: '👑', check: () => game.totalGenerated >= 1e9 },
+  { id: 'clicks_100',  name: '勤劳之手',   desc: '点击 100 次',            icon: '🤚', check: () => game.totalClicks >= 100 },
+  { id: 'clicks_1000', name: '点击狂魔',   desc: '点击 1000 次',           icon: '🔥', check: () => game.totalClicks >= 1000 },
+  { id: 'upgrade_10',  name: '升级爱好者', desc: '购买 10 次升级',         icon: '⬆️', check: () => game.totalUpgrades >= 10 },
+  { id: 'upgrade_50',  name: '强化大师',   desc: '购买 50 次升级',         icon: '⚙️', check: () => game.totalUpgrades >= 50 },
+  { id: 'auto_100',    name: '自动化',     desc: '每秒产出达到 100',      icon: '🤖', check: () => getEffectiveAutoPerSec() >= 100 },
+  { id: 'play_5min',   name: '坚持五分钟', desc: '游戏时间超过 5 分钟',    icon: '⏱️', check: () => game.playTime >= 300 },
+  { id: 'play_1h',     name: '数字大师',   desc: '游戏时间超过 1 小时',    icon: '🏆', check: () => game.playTime >= 3600 },
+  { id: 'prestige_1',  name: '涅槃重生',   desc: '完成第一次转生',         icon: '🌟', check: () => game.prestigeCount >= 1 },
+  { id: 'prestige_5',  name: '轮回使者',   desc: '完成 5 次转生',          icon: '🔮', check: () => game.prestigeCount >= 5 },
+  { id: 'combo_10',    name: '连击新手',   desc: '达到 10 连击',           icon: '💥', check: () => game.combo >= 10 },
+  { id: 'combo_30',    name: '连击大师',   desc: '达到 30 连击',           icon: '⚡', check: () => game.combo >= 30 },
+  { id: 'combo_50',    name: '连击传说',   desc: '达到 50 连击',           icon: '🌀', check: () => game.combo >= 50 },
+  { id: 'golden_1',    name: '金色邂逅',   desc: '收集第一个金色数字',     icon: '✨', check: () => (game.dailyQuestProgress && game.dailyQuestProgress.goldenTotal || 0) >= 1 },
+  { id: 'golden_10',   name: '金色猎人',   desc: '累计收集 10 个金色数字', icon: '🌟', check: () => (game.dailyQuestProgress && game.dailyQuestProgress.goldenTotal || 0) >= 10 },
+  { id: 'idle_5min',   name: '佛系玩家',   desc: '单次闲置超过 5 分钟',    icon: '😴', check: () => game.idleTime >= 300 },
+  { id: 'click_10k',   name: '麒麟臂',     desc: '点击 10000 次',          icon: '💪', check: () => game.totalClicks >= 10000 },
+  { id: 'prestige_10', name: '轮回之主',   desc: '完成 10 次转生',         icon: '👑', check: () => game.prestigeCount >= 10 },
+  { id: 'auto_1000',   name: '全自动化',   desc: '每秒产出达到 1000',     icon: '🏭', check: () => getEffectiveAutoPerSec() >= 1000 },
+  { id: 'combo_50',    name: '连击狂魔',   desc: '达到 50 连击',           icon: '⚡', check: () => game.combo >= 50 },
+  { id: 'theme_3',     name: '色彩大师',   desc: '解锁 3 种主题',          icon: '🎨', check: () => themes.filter(t => isThemeUnlocked(t)).length >= 3 },
+  { id: 'event_10',    name: '幸运儿',     desc: '触发 10 次随机事件',     icon: '🎲', check: () => (game.totalEvents || 0) >= 10 },
+  { id: 'bestrun_1e9', name: '十亿富翁',   desc: '单轮获得 10 亿数字',     icon: '💰', check: () => game.prestigeBestRun >= 1e9 },
+];
+
+// ========== 里程碑定义 ==========
+const milestones = [10, 100, 1000, 10000, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e15, 1e18, 1e21];
+const milestoneReached = new Set();
+let currentMilestoneIndex = -1;
+
+// ========== 随机事件定义 ==========
+const eventDefs = [
+  { id: 'rain',     name: '🌧️ 数字雨',   desc: '所有产出 x5',        duration: 15, multiplier: 5,  critBonus: 0,   speedBonus: 1 },
+  { id: 'critStorm',name: '💥 暴击狂潮', desc: '暴击率 100%',         duration: 10, multiplier: 1,  critBonus: 100, speedBonus: 1 },
+  { id: 'speed',    name: '⚡ 超级加速', desc: '自动产出 x10',        duration: 20, multiplier: 1,  critBonus: 0,   speedBonus: 10 },
+  { id: 'lucky',    name: '🍀 幸运时刻', desc: '幸运掉落 100% x10',  duration: 12, multiplier: 1,  critBonus: 0,   speedBonus: 1, luckBonus: 100, luckMult: 10 },
+  { id: 'blackHole',name: '🕳️ 数字黑洞', desc: '所有升级成本减半',      duration: 20, multiplier: 1,  critBonus: 0,   speedBonus: 1, costHalved: true },
+  { id: 'timeWarp', name: '⏰ 时间扭曲', desc: '游戏速度 x2',          duration: 15, multiplier: 1,  critBonus: 0,   speedBonus: 2, timeWarp: true },
+];
+
+// ========== 辅助函数 ==========
+function getEffectiveAutoPerSec() {
+  const fortuneBonus = 1 + (game.prestigeUpgrades['p_fortune'] || 0) * 0.25;
+  return game.autoPerSec * game.globalMultiplier * Math.pow(2, game.prestigeBonus) * fortuneBonus;
+}
+function getEffectiveClickPower() {
+  const fortuneBonus = 1 + (game.prestigeUpgrades['p_fortune'] || 0) * 0.25;
+  return game.clickPower * game.globalMultiplier * Math.pow(2, game.prestigeBonus) * fortuneBonus;
+}
+function getEffectiveCritMultiplier() {
+  return game.critMultiplier + (game.prestigeUpgrades['p_critDmg'] || 0) * 1;
+}
+function getUpgradeCost(def, level) {
+  let cost = Math.floor(def.baseCost * Math.pow(def.costGrowth, level));
+  if (game.eventActive && game.eventType && game.eventType.costHalved) {
+    cost = Math.floor(cost / 2);
+  }
+  return cost;
+}
+
+// ========== 初始化 ==========
+function initUpgrades() { upgradeDefs.forEach(d => { game.upgrades[d.id] = 0; }); }
+function initAchievements() { achievementDefs.forEach(a => { game.achievements[a.id] = false; }); }
+function initPrestigeUpgrades() { prestigeUpgradeDefs.forEach(d => { game.prestigeUpgrades[d.id] = 0; }); }
+
+// ========== 存档 ==========
+function saveGame() {
+  game.lastSaveTime = Date.now();
+  game.lastOnlineTime = Date.now();
+  localStorage.setItem('numberFactory_v2', JSON.stringify(game));
+}
+
+function loadGame() {
+  const data = localStorage.getItem('numberFactory_v2');
+  if (data) {
+    try {
+      const saved = JSON.parse(data);
+      // 兼容旧存档
+      if (!saved.prestigePoints) saved.prestigePoints = 0;
+      if (!saved.prestigeCount) saved.prestigeCount = 0;
+      if (!saved.prestigeBonus) saved.prestigeBonus = 0;
+      if (!saved.prestigeUpgrades) saved.prestigeUpgrades = {};
+      if (!saved.luckChance) saved.luckChance = 0;
+      if (!saved.luckMultiplier) saved.luckMultiplier = 5;
+      if (!saved.comboWindow) saved.comboWindow = 1.0;
+      if (!saved.eventCooldown) saved.eventCooldown = 0;
+      if (!saved.idleTime) saved.idleTime = 0;
+      if (!saved.goldenTimer) saved.goldenTimer = 20;
+      if (!saved.dailyQuestProgress) saved.dailyQuestProgress = { clicks: 0, earn: 0, upgrades: 0, combo: 0, crits: 0, golden: 0, goldenTotal: 0 };
+      if (!saved.dailyQuestDate) saved.dailyQuestDate = '';
+      if (!saved.dailyQuests) saved.dailyQuests = [];
+      initPrestigeUpgrades();
+      Object.assign(game.prestigeUpgrades, saved.prestigeUpgrades);
+      Object.assign(game, saved);
+      recalcAllEffects();
+      // 恢复里程碑
+      milestones.forEach((m, i) => {
+        if (game.numbers >= m) milestoneReached.add(m);
+        if (m <= game.numbers || (i > 0 && milestoneReached.has(milestones[i - 1]))) {
+          currentMilestoneIndex = Math.max(currentMilestoneIndex, i);
+        }
+      });
+      // 离线收益
+      if (saved.lastOnlineTime) {
+        const offlineSec = (Date.now() - saved.lastOnlineTime) / 1000;
+        if (offlineSec > 60) {
+          showOfflineEarnings(offlineSec);
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }
+}
+
+// ========== 导入/导出 ==========
+function exportSave() {
+  saveGame();
+  const data = localStorage.getItem('numberFactory_v2');
+  if (!data) return;
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'number-factory-save-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  showUpgradeToast('存档已导出', '');
+}
+
+function importSave() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (data.numbers === undefined && data.prestigePoints === undefined) {
+          showUpgradeToast('无效的存档文件', '');
+          return;
+        }
+        showConfirm('导入存档', '导入后将覆盖当前所有进度，确定继续？', () => {
+          localStorage.setItem('numberFactory_v2', JSON.stringify(data));
+          location.reload();
+        }, '确认导入');
+      } catch (e) {
+        showUpgradeToast('存档文件损坏', '');
+      }
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+}
+
+function recalcAllEffects() {
+  game.clickPower = 1;
+  game.critChance = 0;
+  game.critMultiplier = 2;
+  game.autoPerSec = 0;
+  game.globalMultiplier = 1;
+  game.luckChance = 0;
+  game.luckMultiplier = 5;
+  game.comboWindow = 1.0;
+  upgradeDefs.forEach(d => {
+    const lvl = game.upgrades[d.id] || 0;
+    for (let i = 0; i < lvl; i++) d.effect(i + 1);
+  });
+  // 应用声望永久加成
+  applyPrestigeEffects();
+}
+
+function applyPrestigeEffects() {
+  const pClick = game.prestigeUpgrades['p_click'] || 0;
+  game.clickPower += pClick * 10;
+  const pAuto = game.prestigeUpgrades['p_auto'] || 0;
+  game.autoPerSec += pAuto * 5;
+  const pCombo = game.prestigeUpgrades['p_combo'] || 0;
+  game.comboWindow += pCombo * 0.5;
+  const pLuck = game.prestigeUpgrades['p_luck'] || 0;
+  game.luckChance += pLuck * 3;
+}
+
+// ========== 离线收益 ==========
+function showOfflineEarnings(offlineSec) {
+  const cappedSec = Math.min(offlineSec, 86400); // 最多24小时
+  const offlineLevel = game.prestigeUpgrades['p_offline'] || 0;
+  const offlineUpgrade = game.upgrades['offline1'] || 0;
+  const ratio = (0.5 + offlineLevel * 0.1) * Math.pow(1.5, offlineUpgrade); // 离线效率升级
+  const earnings = Math.floor(getEffectiveAutoPerSec() * cappedSec * ratio);
+  if (earnings <= 0) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'offline-popup';
+  overlay.innerHTML = `
+    <div class="offline-box">
+      <div class="offline-icon">💤</div>
+      <div class="offline-title">离线收益</div>
+      <div class="offline-text">你离开了 ${formatTimeAgo(cappedSec)}</div>
+      <div class="offline-amount">+${formatNumber(earnings)}</div>
+      <div class="offline-double">点击领取双倍</div>
+      <div style="display:flex;gap:10px;margin-top:12px;">
+        <button class="offline-btn" id="offlineClaim">普通领取</button>
+        <button class="offline-btn offline-btn-double" id="offlineClaimDouble">🔥 双倍领取</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#offlineClaim').addEventListener('click', () => {
+    game.numbers += earnings;
+    game.totalGenerated += earnings;
+    overlay.remove();
+    updateDisplay();
+    saveGame();
+  });
+  overlay.querySelector('#offlineClaimDouble').addEventListener('click', () => {
+    const doubled = earnings * 2;
+    game.numbers += doubled;
+    game.totalGenerated += doubled;
+    spawnFloatNumberRaw(overlay.querySelector('.offline-amount'), '+x2! +' + formatNumber(doubled), true);
+    overlay.remove();
+    updateDisplay();
+    saveGame();
+  });
+}
+
+function formatTimeAgo(sec) {
+  if (sec < 120) return Math.floor(sec) + '秒';
+  if (sec < 7200) return Math.floor(sec / 60) + '分钟';
+  return Math.floor(sec / 3600) + '小时';
+}
+
+// ========== 转生系统 ==========
+const PRESTIGE_THRESHOLD = 1e6; // 100万
+function getPrestigeGain() {
+  if (game.numbers < PRESTIGE_THRESHOLD) return 0;
+  return Math.floor(Math.log2(game.numbers / PRESTIGE_THRESHOLD)) + 1;
+}
+
+function canPrestige() {
+  return game.numbers >= PRESTIGE_THRESHOLD;
+}
+
+function doPrestige() {
+  const gain = getPrestigeGain();
+  if (gain <= 0) return;
+
+  showConfirm('确认转生', `你将获得 <b style="color:#ffcc00">${gain} 声望点数</b><br><br>以下内容将被重置：<br>• 所有数字<br>• 所有普通升级<br>• 成就进度<br><br>以下内容保留：<br>• 声望点数<br>• 声望商店购买`, () => {
+    document.body.classList.remove('prestige-ready');
+    // 保留声望数据
+    const savedPP = game.prestigePoints + gain;
+    const savedPC = game.prestigeCount + 1;
+    const savedPU = { ...game.prestigeUpgrades };
+    const savedPB = game.prestigeBonus;
+    const savedEvent = game.eventCooldown;
+    const savedLastOnline = Date.now();
+
+    // 记录最佳转生
+    if (game.totalGenerated > game.prestigeBestRun) game.prestigeBestRun = Math.floor(game.totalGenerated);
+    if (game.prestigeFastest === 0 || game.playTime < game.prestigeFastest) game.prestigeFastest = Math.floor(game.playTime);
+
+    // 记录转生历史
+    game.prestigeHistory.unshift({
+      time: Date.now(),
+      total: Math.floor(game.totalGenerated),
+      gain: gain,
+      duration: Math.floor(game.playTime),
+    });
+    if (game.prestigeHistory.length > 10) game.prestigeHistory.pop();
+
+    // 重置
+    game.numbers = 0;
+    game.totalGenerated = 0;
+    game.totalClicks = 0;
+    game.totalCrits = 0;
+    game.totalUpgrades = 0;
+    game.playTime = 0;
+    game.clickPower = 1;
+    game.critChance = 0;
+    game.critMultiplier = 2;
+    game.autoPerSec = 0;
+    game.globalMultiplier = 1;
+    game.luckChance = 0;
+    game.luckMultiplier = 5;
+    game.comboWindow = 1.0;
+    game.combo = 0;
+    game.lastClickTime = 0;
+    game.idleTime = 0;
+    game.goldenTimer = 20;
+    game.eventActive = false;
+    game.eventType = null;
+    game.eventTimer = 0;
+    initUpgrades();
+    initAchievements();
+
+    // 恢复声望
+    game.prestigePoints = savedPP;
+    game.prestigeCount = savedPC;
+    game.prestigeUpgrades = savedPU;
+    game.prestigeBonus = savedPB;
+    game.eventCooldown = savedEvent;
+    game.lastSaveTime = Date.now();
+    game.lastOnlineTime = savedLastOnline;
+
+    // 应用声望起始加成
+    const pStart = game.prestigeUpgrades['p_start'] || 0;
+    game.numbers = Math.pow(10, pStart);
+    game.totalGenerated = game.numbers;
+
+    applyPrestigeEffects();
+    // 重置每日任务进度（保留 goldenTotal）
+    const savedGoldenTotal = game.dailyQuestProgress ? game.dailyQuestProgress.goldenTotal || 0 : 0;
+    game.dailyQuestProgress = { clicks: 0, earn: 0, upgrades: 0, combo: 0, crits: 0, golden: 0, goldenTotal: savedGoldenTotal };
+    game.dailyQuests = [];
+    game.dailyQuestDate = '';
+    milestoneReached.clear();
+    currentMilestoneIndex = -1;
+    updateEventBar();
+    renderUpgrades();
+    renderAchievements();
+    renderPrestige();
+    updateDisplay();
+    sfxPrestige();
+    saveGame();
+  }, '确认转生');
+}
+
+function buyPrestigeUpgrade(id) {
+  const def = prestigeUpgradeDefs.find(d => d.id === id);
+  if (!def) return;
+  const lvl = game.prestigeUpgrades[id] || 0;
+  if (lvl >= def.maxLevel) return;
+  const cost = getPrestigeUpgradeCost(def, lvl);
+  if (game.prestigePoints < cost) return;
+
+  game.prestigePoints -= cost;
+  game.prestigeUpgrades[id] = lvl + 1;
+  def.effect(lvl + 1);
+
+  // 重新应用声望效果
+  recalcAllEffects();
+  renderPrestige();
+  updateDisplay();
+  saveGame();
+}
+
+// ========== 随机事件系统 ==========
+function getEventCooldownMin() {
+  const pEvent = game.prestigeUpgrades['p_event'] || 0;
+  return Math.max(15, 45 - pEvent * 3);
+}
+function getEventCooldownMax() {
+  const pEvent = game.prestigeUpgrades['p_event'] || 0;
+  return Math.max(30, 90 - pEvent * 6);
+}
+
+function triggerRandomEvent() {
+  if (game.eventActive) return;
+  const def = eventDefs[Math.floor(Math.random() * eventDefs.length)];
+  game.eventActive = true;
+  game.eventType = def;
+  game.eventTimer = def.duration;
+  game.totalEvents = (game.totalEvents || 0) + 1;
+  sfxEvent();
+  updateEventBar();
+  showEventToast(def.name, def.desc);
+}
+
+function showEventToast(name, desc) {
+  const toast = document.createElement('div');
+  toast.className = 'event-toast';
+  toast.innerHTML = '<span class="toast-icon">🎲</span><div class="toast-info"><div class="toast-label">随机事件</div><div class="toast-name">' + name + '</div><div style="font-size:11px;color:#aaa;">' + desc + '</div></div>';
+  document.body.appendChild(toast);
+  setTimeout(() => { if (toast.parentNode) toast.style.animation = 'toastOut 0.5s ease-in forwards'; setTimeout(() => { if (toast.parentNode) toast.remove(); }, 500); }, 2500);
+}
+
+function updateEventBar() {
+  const bar = document.getElementById('eventBar');
+  if (game.eventActive && game.eventType) {
+    bar.classList.add('active');
+    document.getElementById('eventText').textContent = game.eventType.name + ' - ' + game.eventType.desc;
+    document.getElementById('eventTimer').textContent = '剩余 ' + Math.ceil(game.eventTimer) + ' 秒';
+    const pct = (game.eventTimer / game.eventType.duration) * 100;
+    bar.style.setProperty('--progress', pct + '%');
+  } else {
+    bar.classList.remove('active');
+  }
+}
+
+function getEventMultiplier() {
+  if (!game.eventActive || !game.eventType) return { mult: 1, crit: 0, speed: 1, luck: 0, luckMult: 1 };
+  const eventRBonus = 1 + (game.prestigeUpgrades['p_eventR'] || 0) * 0.5;
+  return {
+    mult: game.eventType.multiplier * eventRBonus,
+    crit: game.eventType.critBonus,
+    speed: game.eventType.speedBonus,
+    luck: (game.eventType.luckBonus || 0) * eventRBonus,
+    luckMult: game.eventType.luckMult || 1,
+  };
+}
+
+// ========== 挑战系统 ==========
+const challengeDefs = [
+  { id: 'earn_ch', name: '⚡ 快速收集', desc: '在 {time}秒内获得 {target} 数字', getTarget(lvl) { return Math.pow(10, 2 + lvl) * 5; }, getTime(lvl) { return 45 - lvl * 3; }, reward(lvl) { return Math.pow(10, 2 + lvl) * 3; } },
+  { id: 'click_ch', name: '👆 点击狂潮', desc: '在 {time}秒内点击 {target} 次', getTarget(lvl) { return 20 + lvl * 15; }, getTime(lvl) { return 30 - lvl * 2; }, reward(lvl) { return Math.pow(10, 2 + lvl) * 2; } },
+  { id: 'upgrade_ch', name: '🔧 升级冲刺', desc: '在 {time}秒内购买 {target} 次升级', getTarget(lvl) { return 5 + lvl * 3; }, getTime(lvl) { return 40 - lvl * 3; }, reward(lvl) { return Math.pow(10, 2 + lvl) * 4; } },
+];
+let challengeLevel = 0;
+
+function startChallenge() {
+  if (game.challengeActive) return;
+  const idx = Math.floor(Math.random() * challengeDefs.length);
+  const def = challengeDefs[idx];
+  const cTime = def.getTime(challengeLevel);
+  const cTarget = def.getTarget(challengeLevel);
+  game.challengeActive = true;
+  game.challengeType = { ...def, idx, time: cTime, target: cTarget, reward: def.reward(challengeLevel) };
+  game.challengeTimer = cTime;
+  game.challengeProgress = 0;
+  game.challengeTarget = cTarget;
+  updateChallengeBar();
+  showEventToast('🎯 挑战', def.name + ' - ' + def.desc.replace('{time}', cTime).replace('{target}', formatNumber(cTarget)));
+}
+
+function updateChallengeBar() {
+  const bar = document.getElementById('challengeBar');
+  if (game.challengeActive && game.challengeType) {
+    bar.classList.add('active');
+    document.getElementById('challengeText').textContent = '🎯 ' + game.challengeType.name + ': ' + formatNumber(Math.floor(game.challengeProgress)) + ' / ' + formatNumber(game.challengeTarget);
+    document.getElementById('challengeTimer').textContent = '剩余 ' + Math.ceil(game.challengeTimer) + ' 秒 | 奖励: +' + formatNumber(game.challengeType.reward);
+    const pct = Math.min(100, (game.challengeProgress / game.challengeTarget) * 100);
+    document.getElementById('challengeFill').style.width = pct + '%';
+  } else {
+    bar.classList.remove('active');
+  }
+}
+
+function completeChallenge() {
+  const reward = Math.floor(game.challengeType.reward * (1 + (game.prestigeUpgrades['p_chall'] || 0) * 0.5));
+  game.numbers += reward;
+  game.totalGenerated += reward;
+  game.challengesCompleted++;
+  game.challengeActive = false;
+  game.challengeType = null;
+  game.challengeCooldown = 60 + Math.random() * 60;
+  challengeLevel = Math.min(challengeLevel + 1, 10);
+  updateChallengeBar();
+  const el = document.createElement('div');
+  el.className = 'milestone-popup';
+  el.innerHTML = '<span class="milestone-icon">🏆</span><div class="milestone-text">挑战完成！+ ' + formatNumber(reward) + '</div>';
+  el.style.borderColor = '#00ff88';
+  el.style.color = '#00ff88';
+  document.body.appendChild(el);
+  burstConfetti();
+  sfxAchievement();
+  setTimeout(() => { el.style.animation = 'toastOut 0.5s ease-in forwards'; setTimeout(() => el.remove(), 500); }, 2400);
+  updateDisplay();
+  saveGame();
+}
+
+function failChallenge() {
+  game.challengesFailed++;
+  game.challengeActive = false;
+  game.challengeType = null;
+  game.challengeCooldown = 30 + Math.random() * 30;
+  updateChallengeBar();
+}
+
+function updateChallenge(dt, autoGen) {
+  // 挑战计时器
+  if (!game.challengeActive && game.challengeCooldown > 0) {
+    game.challengeCooldown -= dt;
+    if (game.challengeCooldown <= 0) {
+      game.challengeCooldown = 0;
+      startChallenge();
+    }
+  }
+  if (game.challengeActive && game.challengeType) {
+    game.challengeTimer -= dt;
+    // 对"快速收集"类型，自动产出计入进度
+    if (game.challengeType.id === 'earn_ch') {
+      game.challengeProgress += autoGen;
+    }
+    if (game.challengeTimer <= 0) {
+      if (game.challengeProgress >= game.challengeTarget) {
+        completeChallenge();
+      } else {
+        failChallenge();
+      }
+    }
+    updateChallengeBar();
+  }
+}
+
+// ========== 连击系统 ==========
+function updateCombo() {
+  const now = Date.now() / 1000;
+  if (now - game.lastClickTime > game.comboWindow) {
+    game.combo = 0;
+  }
+  const comboEl = document.getElementById('comboDisplay');
+  if (game.combo >= 5) {
+    const bonus = Math.floor(game.combo / 5) * 10;
+    comboEl.textContent = '🔥 ' + game.combo + ' 连击！点击力量 +' + bonus + '%';
+    comboEl.classList.add('active');
+    setTimeout(() => comboEl.classList.remove('active'), 300);
+    // 高连击屏幕震动
+    if (game.combo >= 20 && game.combo % 10 === 0) {
+      screenShake(game.combo / 20);
+    }
+  } else if (game.combo > 0) {
+    comboEl.textContent = game.combo + ' 连击';
+    comboEl.classList.add('active');
+    setTimeout(() => comboEl.classList.remove('active'), 300);
+  } else {
+    comboEl.textContent = '';
+  }
+  if (game.combo > game.bestCombo) game.bestCombo = game.combo;
+}
+
+function screenShake(intensity) {
+  const container = document.querySelector('.container');
+  const i = Math.min(intensity, 5);
+  container.style.animation = 'none';
+  container.offsetHeight;
+  container.style.animation = 'shake ' + (0.3 / i) + 's ease-in-out';
+  setTimeout(() => { container.style.animation = ''; }, 300);
+}
+
+function getComboBonus() {
+  if (game.combo < 5) return 1;
+  return 1 + Math.floor(game.combo / 5) * 0.1;
+}
+
+// ========== 自定义确认弹窗 ==========
+function showConfirm(title, text, onConfirm, confirmText) {
+  const existing = document.querySelector('.modal-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-icon">⚠️</div>
+      <div class="modal-title">${title}</div>
+      <div class="modal-text">${text}</div>
+      <div class="modal-buttons">
+        <button class="modal-btn modal-btn-cancel" id="modalCancel">取消</button>
+        <button class="modal-btn ${confirmText ? 'modal-btn-gold' : 'modal-btn-confirm'}" id="modalConfirm">${confirmText || '确认重置'}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#modalCancel').addEventListener('click', () => overlay.remove());
+  overlay.querySelector('#modalConfirm').addEventListener('click', () => {
+    overlay.remove();
+    onConfirm();
+  });
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+}
+
+function resetGame() {
+  showConfirm('重置游戏', '确定要重置所有游戏数据吗？<br>包括声望进度也将清空。<br>此操作不可撤销！', () => {
+    localStorage.removeItem('numberFactory_v2');
+    location.reload();
+  });
+}
+
+// ========== 数字格式化 ==========
+function formatNumber(n) {
+  if (game.scientificNotation && n >= 1e6) return n.toExponential(2);
+  if (n < 1000) return Math.floor(n).toString();
+  if (n < 1e6)  return (n / 1e3).toFixed(2) + 'K';
+  if (n < 1e9)  return (n / 1e6).toFixed(2) + 'M';
+  if (n < 1e12) return (n / 1e9).toFixed(2) + 'B';
+  if (n < 1e15) return (n / 1e12).toFixed(2) + 'T';
+  if (n < 1e18) return (n / 1e15).toFixed(2) + 'Qa';
+  if (n < 1e21) return (n / 1e18).toFixed(2) + 'Qi';
+  return n.toExponential(2);
+}
+
+// ========== 里程碑 ==========
+function showMilestone(value) {
+  const el = document.createElement('div');
+  el.className = 'milestone-popup';
+  el.innerHTML = '<span class="milestone-icon">🎉</span><div class="milestone-text">达到 ' + formatNumber(value) + '！</div>';
+  document.body.appendChild(el);
+  // 里程碑爆发粒子
+  burstConfetti();
+  sfxAchievement();
+  setTimeout(() => { el.style.animation = 'toastOut 0.5s ease-in forwards'; setTimeout(() => el.remove(), 500); }, 2400);
+}
+
+function burstConfetti() {
+  const colors = ['#ff6b9d','#c44dff','#6ec6ff','#ffcc00','#00ff88','#ff8800','#ff44aa'];
+  for (let i = 0; i < 24; i++) {
+    const particle = document.createElement('div');
+    particle.className = 'confetti';
+    particle.style.left = '50%';
+    particle.style.top = (40 + Math.random() * 20) + '%';
+    particle.style.background = colors[Math.floor(Math.random() * colors.length)];
+    particle.style.width = (6 + Math.random() * 8) + 'px';
+    particle.style.height = (6 + Math.random() * 8) + 'px';
+    particle.style.setProperty('--tx', (Math.random() - 0.5) * 300 + 'px');
+    particle.style.setProperty('--ty', (Math.random() * -200 - 50) + 'px');
+    particle.style.setProperty('--rot', (Math.random() * 720 - 360) + 'deg');
+    document.body.appendChild(particle);
+    setTimeout(() => particle.remove(), 1500);
+  }
+}
+
+function checkMilestones() {
+  for (let i = 0; i < milestones.length; i++) {
+    const m = milestones[i];
+    if (!milestoneReached.has(m) && game.numbers >= m) {
+      milestoneReached.add(m);
+      currentMilestoneIndex = Math.max(currentMilestoneIndex, i);
+      showMilestone(m);
+    }
+  }
+}
+
+// ========== UI 渲染 ==========
+function updateDisplay() {
+  const numEl = document.getElementById('mainNumber');
+  const newNum = formatNumber(game.numbers);
+  if (newNum !== numEl.textContent) {
+    numEl.textContent = newNum;
+    numEl.classList.remove('pop');
+    void numEl.offsetWidth;
+    numEl.classList.add('pop');
+  }
+  document.getElementById('perSecond').textContent = '每秒 +' + formatNumber(getEffectiveAutoPerSec());
+  document.getElementById('clickPowerText').textContent = '+' + formatNumber(getEffectiveClickPower());
+
+  // 进度条
+  let prevM = currentMilestoneIndex >= 0 ? milestones[currentMilestoneIndex] : 0;
+  let nextM = currentMilestoneIndex + 1 < milestones.length ? milestones[currentMilestoneIndex + 1] : milestones[milestones.length - 1];
+  if (game.numbers >= nextM) {
+    for (let i = 0; i < milestones.length; i++) {
+      if (game.numbers < milestones[i]) { nextM = milestones[i]; prevM = i > 0 ? milestones[i - 1] : 0; break; }
+      if (i === milestones.length - 1) { prevM = milestones[i]; nextM = milestones[i]; }
+    }
+  }
+  const progress = nextM > prevM ? Math.min(100, ((game.numbers - prevM) / (nextM - prevM)) * 100) : 100;
+  document.getElementById('progressBar').style.width = progress + '%';
+}
+
+// ========== 升级面板 ==========
+function renderUpgrades() {
+  const list = document.getElementById('upgradeList');
+  list.innerHTML = upgradeDefs.map(d => buildUpgradeHTML(d)).join('');
+}
+
+function buildUpgradeHTML(d) {
+  const lvl = game.upgrades[d.id] || 0;
+  const maxed = lvl >= d.maxLevel;
+  const cost = maxed ? 0 : getUpgradeCost(d, lvl);
+  const canBuy = !maxed && game.numbers >= cost;
+  let cls = maxed ? 'maxed' : (!canBuy ? 'locked' : 'affordable');
+
+  return `<div class="upgrade-card ${cls}" data-id="${d.id}">
+    <div class="info">
+      <div class="name">${d.name} <span style="color:#6ec6ff;font-size:12px;">Lv.${lvl}${maxed?' MAX':''}</span></div>
+      <div class="desc">${d.desc}</div>
+    </div>
+    <div class="cost-wrap">
+      <div class="cost ${!canBuy&&!maxed?'insufficient':''}">${maxed?'已满级':formatNumber(cost)}</div>
+      ${!maxed?'<div class="level">下一级: '+d.desc+'</div>':''}
+    </div>
+  </div>`;
+}
+
+let upgradeDirty = false;
+function updateUpgradeStates() {
+  const list = document.getElementById('upgradeList');
+  if (!list) return;
+  const cards = list.querySelectorAll('.upgrade-card');
+  if (cards.length === 0) return;
+
+  let anyChanged = false;
+  cards.forEach(card => {
+    const id = card.dataset.id;
+    const d = upgradeDefs.find(x => x.id === id);
+    if (!d) return;
+    const lvl = game.upgrades[id] || 0;
+    const maxed = lvl >= d.maxLevel;
+    const cost = maxed ? 0 : getUpgradeCost(d, lvl);
+    const canBuy = !maxed && game.numbers >= cost;
+
+    const isLocked = card.classList.contains('locked');
+    const isAffordable = card.classList.contains('affordable');
+    const isMaxed = card.classList.contains('maxed');
+    const shouldLocked = !canBuy && !maxed;
+    const shouldAffordable = canBuy && !maxed;
+
+    if (isLocked !== shouldLocked || isAffordable !== shouldAffordable || isMaxed !== maxed) {
+      card.classList.remove('locked', 'affordable', 'maxed');
+      if (shouldLocked) card.classList.add('locked');
+      if (shouldAffordable) card.classList.add('affordable');
+      if (maxed) card.classList.add('maxed');
+      anyChanged = true;
+    }
+
+    const costEl = card.querySelector('.cost');
+    if (costEl) {
+      const newCostText = maxed ? '已满级' : formatNumber(cost);
+      if (costEl.textContent !== newCostText) { costEl.textContent = newCostText; anyChanged = true; }
+      if (!canBuy && !maxed) costEl.classList.add('insufficient');
+      else costEl.classList.remove('insufficient');
+    }
+
+    const nameEl = card.querySelector('.name span');
+    if (nameEl) {
+      const newLvlText = 'Lv.' + lvl + (maxed ? ' MAX' : '');
+      if (nameEl.textContent !== newLvlText) { nameEl.textContent = newLvlText; anyChanged = true; }
+    }
+  });
+
+  // 标记最便宜的可购买升级（最佳性价比）
+  cards.forEach(c => c.classList.remove('best-value'));
+  let cheapestEl = null, cheapestCost = Infinity;
+  cards.forEach(card => {
+    if (card.classList.contains('affordable') && !card.classList.contains('maxed')) {
+      const id = card.dataset.id;
+      const d = upgradeDefs.find(x => x.id === id);
+      if (d) {
+        const lvl = game.upgrades[id] || 0;
+        const cost = getUpgradeCost(d, lvl);
+        if (cost < cheapestCost) { cheapestCost = cost; cheapestEl = card; }
+      }
+    }
+  });
+  if (cheapestEl) cheapestEl.classList.add('best-value');
+
+  if (anyChanged || upgradeDirty) { updateBuyAllButton(); upgradeDirty = false; }
+}
+
+function updateBuyAllButton() {
+  const btn = document.getElementById('buyAllBtn');
+  if (!btn) return;
+  const anyAffordable = upgradeDefs.some(d => {
+    const lvl = game.upgrades[d.id] || 0;
+    return lvl < d.maxLevel && game.numbers >= getUpgradeCost(d, lvl);
+  });
+  btn.disabled = !anyAffordable;
+}
+
+// ========== 转生面板 ==========
+function renderPrestige() {
+  const gain = getPrestigeGain();
+  document.getElementById('prestigeGain').textContent = '可获得声望点数: ' + gain;
+  const btn = document.getElementById('prestigeBtn');
+  const unlock = document.getElementById('prestigeUnlock');
+  if (canPrestige()) {
+    document.body.classList.add('prestige-ready');
+    btn.disabled = false;
+    btn.textContent = '🌟 转生！获得 ' + gain + ' 声望点数';
+  } else {
+    document.body.classList.remove('prestige-ready');
+    btn.disabled = true;
+    btn.textContent = '需要 ' + formatNumber(PRESTIGE_THRESHOLD) + ' 数字才能转生';
+  }
+  unlock.textContent = '解锁条件: 累计数字达到 ' + formatNumber(PRESTIGE_THRESHOLD);
+
+  // 声望商店
+  const shop = document.getElementById('prestigeShop');
+  shop.innerHTML = prestigeUpgradeDefs.map(d => {
+    const lvl = game.prestigeUpgrades[d.id] || 0;
+    const maxed = lvl >= d.maxLevel;
+    const cost = maxed ? 0 : getPrestigeUpgradeCost(d, lvl);
+    const canBuy = !maxed && game.prestigePoints >= cost;
+    let cls = maxed ? 'maxed' : (!canBuy ? 'locked' : '');
+    return `<div class="prestige-card ${cls}" data-pid="${d.id}">
+      <div class="info">
+        <div class="pname">${d.name} <span style="color:#6ec6ff;font-size:12px;">Lv.${lvl}${maxed?' MAX':''}</span></div>
+        <div class="pdesc">${d.desc}</div>
+      </div>
+      <div>
+        <div class="pcost">${maxed?'已满级':'💎 '+cost}</div>
+        <div class="plvl">${maxed?'':d.desc}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // 绑定点击
+  shop.querySelectorAll('.prestige-card:not(.locked):not(.maxed)').forEach(card => {
+    card.addEventListener('click', () => buyPrestigeUpgrade(card.dataset.pid));
+  });
+
+  // 转生历史
+  const histEl = document.getElementById('prestigeHistory');
+  if (game.prestigeHistory.length === 0) {
+    histEl.innerHTML = '<div style="color:#666;text-align:center;font-size:12px;padding:8px;">暂无记录</div>';
+  } else {
+    histEl.innerHTML = game.prestigeHistory.map((h, i) => {
+      const dur = h.duration < 60 ? h.duration + '秒' : Math.floor(h.duration/60) + '分' + (h.duration%60) + '秒';
+      return `<div class="stat-row" style="font-size:12px;padding:4px 0;">
+        <span>#${i+1} ${formatNumber(h.total)}</span>
+        <span class="sval" style="font-size:11px;">+${h.gain}💎 ${dur}</span>
+      </div>`;
+    }).join('');
+  }
+}
+
+// ========== 事件委托 ==========
+function handleUpgradeClick(e) {
+  const card = e.target.closest('.upgrade-card');
+  if (!card || card.classList.contains('locked') || card.classList.contains('maxed')) return;
+  if (card.dataset.id) buyUpgrade(card.dataset.id);
+}
+
+function buyAllAffordable() {
+  let bought = false, changed = true;
+  while (changed) {
+    changed = false;
+    for (const d of upgradeDefs) {
+      const lvl = game.upgrades[d.id] || 0;
+      if (lvl >= d.maxLevel) continue;
+      if (game.numbers >= getUpgradeCost(d, lvl)) {
+        game.numbers -= getUpgradeCost(d, lvl);
+        game.upgrades[d.id] = lvl + 1;
+        game.totalUpgrades++;
+        if (game.challengeActive && game.challengeType && game.challengeType.id === 'upgrade_ch') {
+          game.challengeProgress++;
+        }
+        d.effect(lvl + 1);
+        changed = true; bought = true;
+      }
+    }
+  }
+  if (bought) { renderUpgrades(); updateDisplay(); upgradeDirty = true; sfxUpgrade(); saveGame(); }
+}
+
+// ========== 自动购买 ==========
+function toggleAutoBuy() {
+  game.autoBuy = !game.autoBuy;
+  updateAutoBuyButton();
+  saveGame();
+}
+function addAutoBuyToggle() {
+  const wrap = document.querySelector('.buy-all-wrap');
+  if (!wrap) return;
+  const btn = document.createElement('button');
+  btn.className = 'auto-buy-btn';
+  btn.id = 'autoBuyBtn';
+  btn.textContent = game.autoBuy ? '🤖 自动购买: 开' : '🤖 自动购买: 关';
+  btn.addEventListener('click', toggleAutoBuy);
+  wrap.appendChild(btn);
+  updateAutoBuyButton();
+}
+function updateAutoBuyButton() {
+  const btn = document.getElementById('autoBuyBtn');
+  if (!btn) return;
+  btn.textContent = game.autoBuy ? '🤖 自动购买: 开' : '🤖 自动购买: 关';
+  btn.style.background = game.autoBuy ? 'linear-gradient(135deg,#4cff4c,#22aa22)' : 'linear-gradient(135deg,#555,#444)';
+}
+function autoBuyTick() {
+  if (!game.autoBuy) return;
+  let bought = false;
+  // 找最便宜的买得起的升级
+  let cheapest = null, cheapestCost = Infinity;
+  for (const d of upgradeDefs) {
+    const lvl = game.upgrades[d.id] || 0;
+    if (lvl >= d.maxLevel) continue;
+    const cost = getUpgradeCost(d, lvl);
+    if (game.numbers >= cost && cost < cheapestCost) {
+      cheapest = d; cheapestCost = cost;
+    }
+  }
+  if (cheapest) {
+    const lvl = game.upgrades[cheapest.id] || 0;
+    game.numbers -= getUpgradeCost(cheapest, lvl);
+    game.upgrades[cheapest.id] = lvl + 1;
+    game.totalUpgrades++;
+    cheapest.effect(lvl + 1);
+    if (game.dailyQuestProgress) {
+      game.dailyQuestProgress.upgrades = (game.dailyQuestProgress.upgrades || 0) + 1;
+    }
+    renderUpgrades();
+    upgradeDirty = true;
+    showUpgradeToast(cheapest.name, game.upgrades[cheapest.id]);
+    saveGame();
+  }
+}
+
+function buyUpgrade(id) {
+  const def = upgradeDefs.find(d => d.id === id);
+  if (!def) return;
+  const lvl = game.upgrades[id] || 0;
+  if (lvl >= def.maxLevel) return;
+  const cost = getUpgradeCost(def, lvl);
+  if (game.numbers < cost) return;
+
+  game.numbers -= cost;
+  game.upgrades[id] = lvl + 1;
+  game.totalUpgrades++;
+  // 挑战进度追踪
+  if (game.challengeActive && game.challengeType && game.challengeType.id === 'upgrade_ch') {
+    game.challengeProgress++;
+  }
+  def.effect(lvl + 1);
+
+  // 每日任务追踪
+  if (game.dailyQuestProgress) {
+    game.dailyQuestProgress.upgrades = (game.dailyQuestProgress.upgrades || 0) + 1;
+  }
+
+  renderUpgrades();
+  updateDisplay();
+  upgradeDirty = true;
+  showUpgradeToast(def.name, game.upgrades[id]);
+  sfxUpgrade();
+  saveGame();
+}
+
+// ========== 点击处理 ==========
+function doClick(e) {
+  let power = getEffectiveClickPower();
+  let isCrit = false;
+  let isLuck = false;
+
+  const event = getEventMultiplier();
+
+  // 事件暴击加成
+  if (event.crit > 0) {
+    const savedCrit = game.critChance;
+    game.critChance = 100;
+    if (Math.random() * 100 < game.critChance) {
+      power *= getEffectiveCritMultiplier();
+      isCrit = true;
+      game.totalCrits++;
+    }
+    game.critChance = savedCrit;
+  } else if (Math.random() * 100 < game.critChance) {
+    power *= getEffectiveCritMultiplier();
+    isCrit = true;
+    game.totalCrits++;
+  }
+
+  // 事件倍率
+  power *= event.mult;
+
+  // 连击加成
+  power *= getComboBonus();
+
+  // 闲置加成
+  const idleBonus = getIdleBonus();
+  if (idleBonus > 1) {
+    power *= idleBonus;
+  }
+
+  // 幸运掉落
+  const luckChance = game.luckChance + event.luck;
+  if (Math.random() * 100 < luckChance) {
+    power *= (event.luck > 0 ? event.luckMult : game.luckMultiplier);
+    isLuck = true;
+  }
+
+  game.numbers += power;
+  game.totalGenerated += power;
+  game.totalClicks++;
+
+  // 挑战进度追踪
+  if (game.challengeActive && game.challengeType) {
+    if (game.challengeType.id === 'click_ch') {
+      game.challengeProgress++;
+    } else if (game.challengeType.id === 'earn_ch') {
+      game.challengeProgress += power;
+    }
+  }
+
+  // 每日任务追踪
+  if (game.dailyQuestProgress) {
+    game.dailyQuestProgress.clicks = (game.dailyQuestProgress.clicks || 0) + 1;
+    if (isCrit) game.dailyQuestProgress.crits = (game.dailyQuestProgress.crits || 0) + 1;
+    game.dailyQuestProgress.combo = Math.max(game.dailyQuestProgress.combo || 0, game.combo);
+  }
+
+  // 连击
+  const now = Date.now() / 1000;
+  if (now - game.lastClickTime <= game.comboWindow) {
+    game.combo++;
+  } else {
+    game.combo = 1;
+  }
+  game.lastClickTime = now;
+  updateCombo();
+
+  // 音效
+  if (isCrit) sfxCrit(); else sfxClick();
+
+  let label = '+' + formatNumber(Math.floor(power));
+  if (isCrit && isLuck) label = '💥🍀 ' + label;
+  else if (isCrit) label = '💥 ' + label;
+  else if (isLuck) label = '🍀 ' + label;
+
+  spawnFloatNumber(e, label, isCrit || isLuck);
+  spawnParticles(e);
+
+  updateDisplay();
+  checkAchievements();
+  checkMilestones();
+}
+
+function spawnFloatNumber(e, text, special) {
+  const el = document.createElement('div');
+  el.className = 'float-number' + (special ? ' crit' : '');
+  el.textContent = text;
+  const cx = e.clientX || (e.touches && e.touches[0] && e.touches[0].clientX) || 0;
+  const cy = e.clientY || (e.touches && e.touches[0] && e.touches[0].clientY) || 0;
+  el.style.left = cx + 'px';
+  el.style.top = cy + 'px';
+  document.getElementById('floatLayer').appendChild(el);
+  setTimeout(() => el.remove(), 800);
+}
+
+function spawnParticles(e) {
+  const cx = e.clientX || (e.touches && e.touches[0] && e.touches[0].clientX) || 0;
+  const cy = e.clientY || (e.touches && e.touches[0] && e.touches[0].clientY) || 0;
+  const count = game.combo >= 10 ? 14 : 8;
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const angle = (Math.PI * 2 * i) / count;
+    const dist = 20 + Math.random() * 30;
+    p.style.setProperty('--tx', Math.cos(angle) * dist + 'px');
+    p.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
+    p.style.left = cx + 'px';
+    p.style.top = cy + 'px';
+    document.getElementById('floatLayer').appendChild(p);
+    setTimeout(() => p.remove(), 500);
+  }
+}
+
+// ========== 成就 ==========
+function checkAchievements() {
+  let changed = false;
+  achievementDefs.forEach(a => {
+    if (!game.achievements[a.id] && a.check()) {
+      game.achievements[a.id] = true;
+      showAchievementToast(a);
+      changed = true;
+    }
+  });
+  if (changed) { renderAchievements(); saveGame(); }
+}
+
+function showAchievementToast(a) {
+  sfxAchievement();
+  const toast = document.createElement('div');
+  toast.className = 'achievement-toast';
+  toast.innerHTML = '<span class="toast-icon">' + a.icon + '</span><div class="toast-info"><div class="toast-label">成就解锁</div><div class="toast-name">' + a.name + '</div></div>';
+  document.body.appendChild(toast);
+  setTimeout(() => { if (toast.parentNode) toast.remove(); }, 3000);
+}
+
+function renderAchievements() {
+  const panel = document.getElementById('panel-achievements');
+  panel.innerHTML = achievementDefs.map(a => {
+    const unlocked = game.achievements[a.id];
+    return `<div class="achievement-card ${unlocked?'unlocked':''}">
+      <div class="icon">${unlocked?a.icon:'🔒'}</div>
+      <div><div class="aname">${a.name}</div><div class="adesc">${a.desc}</div></div>
+    </div>`;
+  }).join('');
+}
+
+// ========== 统计 ==========
+function renderStats() {
+  document.getElementById('statClicks').textContent = formatNumber(game.totalClicks);
+  document.getElementById('statTotal').textContent = formatNumber(game.totalGenerated);
+  document.getElementById('statUpgrades').textContent = formatNumber(game.totalUpgrades);
+  document.getElementById('statCrits').textContent = formatNumber(game.totalCrits);
+  const secs = Math.floor(game.playTime);
+  if (secs < 60) document.getElementById('statPlaytime').textContent = secs + '秒';
+  else if (secs < 3600) document.getElementById('statPlaytime').textContent = Math.floor(secs/60) + '分' + (secs%60) + '秒';
+  else document.getElementById('statPlaytime').textContent = Math.floor(secs/3600) + '时' + Math.floor((secs%3600)/60) + '分';
+  document.getElementById('statPrestige').textContent = game.prestigeCount;
+  document.getElementById('statPP').textContent = formatNumber(game.prestigePoints);
+  document.getElementById('statBestRun').textContent = formatNumber(game.prestigeBestRun);
+  if (game.prestigeFastest > 0) {
+    const fs = game.prestigeFastest;
+    if (fs < 60) document.getElementById('statFastest').textContent = fs + '秒';
+    else if (fs < 3600) document.getElementById('statFastest').textContent = Math.floor(fs/60) + '分' + (fs%60) + '秒';
+    else document.getElementById('statFastest').textContent = Math.floor(fs/3600) + '时' + Math.floor((fs%3600)/60) + '分';
+  } else {
+    document.getElementById('statFastest').textContent = '-';
+  }
+  document.getElementById('statBestCombo').textContent = formatNumber(game.bestCombo);
+  document.getElementById('statChallenges').textContent = game.challengesCompleted + ' / ' + (game.challengesCompleted + game.challengesFailed);
+}
+
+// ========== 星空背景 ==========
+function createStars() {
+  const container = document.getElementById('stars');
+  for (let i = 0; i < 100; i++) {
+    const star = document.createElement('div');
+    star.className = 'star';
+    star.style.left = Math.random() * 100 + '%';
+    star.style.top = Math.random() * 100 + '%';
+    const size = Math.random() * 2 + 1;
+    star.style.width = size + 'px';
+    star.style.height = size + 'px';
+    star.style.setProperty('--dur', (Math.random() * 3 + 2) + 's');
+    star.style.setProperty('--delay', Math.random() * 3 + 's');
+    container.appendChild(star);
+  }
+}
+
+// ========== 标签切换 ==========
+let currentTab = 'upgrades';
+function switchTab(tabName) {
+  currentTab = tabName;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+  document.getElementById('panel-' + tabName).classList.add('active');
+  if (tabName === 'upgrades') { renderUpgrades(); updateBuyAllButton(); }
+  if (tabName === 'daily') renderDailyQuests();
+  if (tabName === 'prestige') renderPrestige();
+  if (tabName === 'achievements') renderAchievements();
+  if (tabName === 'stats') renderStats();
+}
+
+// ========== 游戏主循环 ==========
+let lastTick = Date.now();
+function gameLoop() {
+  const now = Date.now();
+  let dt = Math.min((now - lastTick) / 1000, 1);
+  // 时间扭曲事件：游戏速度翻倍
+  if (game.eventActive && game.eventType && game.eventType.timeWarp) {
+    dt *= 2;
+  }
+  lastTick = now;
+
+  // 事件系统
+  const eventCooldownMin = getEventCooldownMin();
+  const eventCooldownMax = getEventCooldownMax();
+
+  if (game.eventActive && game.eventType) {
+    game.eventTimer -= dt;
+    if (game.eventTimer <= 0) {
+      game.eventActive = false;
+      game.eventType = null;
+      game.eventTimer = 0;
+      game.eventCooldown = eventCooldownMin + Math.random() * (eventCooldownMax - eventCooldownMin);
+    }
+    updateEventBar();
+  } else if (!game.eventActive) {
+    game.eventCooldown -= dt;
+    if (game.eventCooldown <= 0) {
+      triggerRandomEvent();
+      game.eventCooldown = eventCooldownMin + Math.random() * (eventCooldownMax - eventCooldownMin);
+    }
+  }
+
+  // 金色数字刷新
+  updateGoldenNumber(dt);
+
+  // 自动点击器
+  updateAutoClicker(dt);
+
+  // 自动购买
+  autoBuyTick();
+
+  // 自动产出
+  const eventBonus = getEventMultiplier();
+  let autoGen = getEffectiveAutoPerSec() * eventBonus.speed * dt;
+  // 闲置增殖升级
+  const idleLevel = game.upgrades['idle1'] || 0;
+  if (idleLevel > 0 && game.idleTime > 5) {
+    autoGen *= (1 + idleLevel * 0.2);
+  }
+
+  // 挑战系统
+  updateChallenge(dt, autoGen);
+  if (autoGen > 0) {
+    game.numbers += autoGen;
+    game.totalGenerated += autoGen;
+  }
+
+  // 数字瀑布特效
+  spawnWaterfall(autoGen, dt);
+
+  // 每日任务进度
+  updateDailyQuests(dt);
+
+  // 游戏时间
+  game.playTime += dt;
+  if (game.lastClickTime > 0) {
+    game.idleTime = now / 1000 - game.lastClickTime;
+  }
+
+  // 每0.5秒更新一次UI
+  if (Math.floor(now / 500) !== Math.floor((now - dt * 1000) / 500)) {
+    updateDisplay();
+    updateUpgradeStates();
+    checkAchievements();
+    checkMilestones();
+    if (currentTab === 'prestige') renderPrestige();
+    if (currentTab === 'stats') renderStats();
+    updateEventBar();
+    updateIdleIndicator();
+    updateVelocityIndicator();
+    renderDailyQuests();
+    updateDailyTabBadge();
+  }
+
+  // 每10秒存档
+  if (now - game.lastSaveTime > 10000) {
+    saveGame();
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+
+// ========== 金色数字 ==========
+function spawnGoldenNumber() {
+  if (document.querySelector('.golden-number')) return;
+  const gn = document.createElement('div');
+  gn.className = 'golden-number';
+  gn.textContent = '✨ ' + formatNumber(Math.floor(game.numbers * (0.5 + Math.random() * 1.5))) + ' ✨';
+  gn.style.left = (10 + Math.random() * 70) + '%';
+  gn.style.top = (15 + Math.random() * 65) + '%';
+  gn.dataset.value = Math.floor(game.numbers * (0.5 + Math.random() * 1.5) * getEffectiveClickPower() * 5 * Math.pow(2, game.prestigeUpgrades['p_goldenM'] || 0));
+  gn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const val = parseFloat(gn.dataset.value) || game.numbers * 5;
+    game.numbers += val;
+    game.totalGenerated += val;
+    // 每日任务追踪
+    if (game.dailyQuestProgress) {
+      game.dailyQuestProgress.golden = (game.dailyQuestProgress.golden || 0) + 1;
+      game.dailyQuestProgress.goldenTotal = (game.dailyQuestProgress.goldenTotal || 0) + 1;
+    }
+    sfxGolden();
+    spawnFloatNumberRaw(gn, '+' + formatNumber(Math.floor(val)), true);
+    gn.remove();
+    updateDisplay();
+    saveGame();
+  });
+  document.body.appendChild(gn);
+  // 10秒后消失
+  setTimeout(() => { if (gn.parentNode) { gn.style.animation = 'goldenFadeOut 0.5s ease-in forwards'; setTimeout(() => gn.remove(), 500); } }, 10000);
+}
+function updateGoldenNumber(dt) {
+  if (game.numbers < 100) return;
+  game.goldenTimer = (game.goldenTimer || 0) - dt;
+  if (game.goldenTimer <= 0 && !document.querySelector('.golden-number')) {
+    spawnGoldenNumber();
+    const pGolden = game.prestigeUpgrades['p_golden'] || 0;
+    game.goldenTimer = (25 + Math.random() * 35) / (1 + pGolden * 0.25);
+  }
+}
+function spawnFloatNumberRaw(el, text, special) {
+  const fe = document.createElement('div');
+  fe.className = 'float-number' + (special ? ' crit' : '');
+  fe.textContent = text;
+  const rect = el.getBoundingClientRect();
+  fe.style.left = (rect.left + rect.width / 2) + 'px';
+  fe.style.top = rect.top + 'px';
+  document.getElementById('floatLayer').appendChild(fe);
+  setTimeout(() => fe.remove(), 800);
+}
+
+// ========== 自动点击器 ==========
+let autoClickTimer = 0;
+function updateAutoClicker(dt) {
+  const autoClickLevel = game.upgrades['autoclick'] || 0;
+  if (autoClickLevel <= 0) return;
+  autoClickTimer += dt;
+  const interval = Math.max(0.5, 5 - autoClickLevel * 0.4);
+  if (autoClickTimer >= interval) {
+    autoClickTimer -= interval;
+    let power = getEffectiveClickPower() * 0.5;
+    const event = getEventMultiplier();
+    if (Math.random() * 100 < game.critChance) {
+      power *= getEffectiveCritMultiplier();
+      game.totalCrits++;
+    }
+    power *= event.mult;
+    const luckChance = game.luckChance + event.luck;
+    if (Math.random() * 100 < luckChance) {
+      power *= (event.luck > 0 ? event.luckMult : game.luckMultiplier);
+    }
+    game.numbers += power;
+    game.totalGenerated += power;
+    game.totalClicks++;
+  }
+}
+
+// ========== 闲置奖励 ==========
+function getIdleBonus() {
+  if (game.idleTime < 10) return 1;
+  const pIdle = game.prestigeUpgrades['p_idle'] || 0;
+  return Math.min(10 + pIdle * 2, 1 + Math.floor(game.idleTime / 10) * (0.5 + pIdle * 0.3));
+}
+function updateIdleIndicator() {
+  const el = document.getElementById('idleIndicator');
+  if (!el) return;
+  const bonus = getIdleBonus();
+  if (bonus > 1) {
+    el.textContent = '💤 闲置奖励 x' + bonus.toFixed(1) + ' (下次点击生效)';
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+// ========== 速度指示器 ==========
+let lastNumbersForVelocity = 0;
+let velocityDirection = 'stable';
+function updateVelocityIndicator() {
+  const el = document.getElementById('velocityIndicator');
+  if (!el) return;
+  const diff = game.numbers - lastNumbersForVelocity;
+  if (diff > 0.01) {
+    el.textContent = '📈 增长加速中';
+    el.className = 'velocity-indicator up';
+    velocityDirection = 'up';
+  } else if (diff < -0.01) {
+    el.textContent = '';
+    el.className = 'velocity-indicator stable';
+  } else {
+    el.textContent = '';
+    el.className = 'velocity-indicator stable';
+  }
+  lastNumbersForVelocity = game.numbers;
+}
+
+// ========== 数字瀑布特效 ==========
+let waterfallTimer = 0;
+function spawnWaterfall(autoGen, dt) {
+  waterfallTimer += dt;
+  const rate = Math.min(getEffectiveAutoPerSec() / 100, 3); // 每秒最多3个
+  if (rate <= 0.1) return;
+  const interval = 1 / rate;
+  while (waterfallTimer >= interval) {
+    waterfallTimer -= interval;
+    const digit = document.createElement('div');
+    digit.className = 'digit-fall';
+    digit.textContent = '+' + formatNumber(getEffectiveAutoPerSec() * 0.5);
+    digit.style.left = (5 + Math.random() * 90) + '%';
+    digit.style.setProperty('--dur', (2 + Math.random() * 3) + 's');
+    digit.style.setProperty('--rot', (Math.random() * 60 - 30) + 'deg');
+    digit.style.color = ['#6ec6ff','#c44dff','#ff6b9d','#00ff88'][Math.floor(Math.random()*4)];
+    document.body.appendChild(digit);
+    setTimeout(() => digit.remove(), 5000);
+  }
+}
+
+// ========== 升级购买反馈 ==========
+function showUpgradeToast(name, level) {
+  const existing = document.querySelector('.upgrade-toast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.className = 'upgrade-toast';
+  toast.textContent = '✅ ' + name + ' → Lv.' + level;
+  document.body.appendChild(toast);
+  setTimeout(() => { if (toast.parentNode) toast.remove(); }, 1200);
+}
+
+// ========== 每日任务 ==========
+const dailyQuestPool = [
+  { id: 'click_q',   name: '勤劳点击',   desc: '点击 {target} 次',          type: 'clicks',    getTarget(lvl){ return 50 + lvl * 50; },   reward(lvl){ return 500 + lvl * 500; } },
+  { id: 'earn_q',    name: '数字收集',   desc: '累计获得 {target} 数字',    type: 'earn',      getTarget(lvl){ return 500 + lvl * 1000; }, reward(lvl){ return 300 + lvl * 500; } },
+  { id: 'upgrade_q', name: '升级达人',   desc: '购买 {target} 次升级',      type: 'upgrades',  getTarget(lvl){ return 3 + lvl * 2; },     reward(lvl){ return 800 + lvl * 800; } },
+  { id: 'combo_q',   name: '连击挑战',   desc: '达到 {target} 连击',        type: 'combo',     getTarget(lvl){ return 8 + lvl * 3; },     reward(lvl){ return 400 + lvl * 600; } },
+  { id: 'crit_q',    name: '暴击达人',   desc: '触发 {target} 次暴击',      type: 'crits',     getTarget(lvl){ return 10 + lvl * 10; },   reward(lvl){ return 600 + lvl * 600; } },
+  { id: 'golden_q',  name: '金色收割者', desc: '收集 {target} 个金色数字',  type: 'golden',    getTarget(lvl){ return 1 + lvl; },          reward(lvl){ return 5000 + lvl * 3000; } },
+];
+
+function generateDailyQuests() {
+  const today = new Date().toDateString();
+  if (game.dailyQuestDate === today && game.dailyQuests && game.dailyQuests.length > 0) return;
+  game.dailyQuestDate = today;
+  const pool = [...dailyQuestPool];
+  // 随机选3个
+  const quests = [];
+  for (let i = 0; i < 3 && pool.length > 0; i++) {
+    const idx = Math.floor(Math.random() * pool.length);
+    quests.push(pool.splice(idx, 1)[0]);
+  }
+  game.dailyQuests = quests.map(q => {
+    const lvl = game.prestigeCount;
+    const target = q.getTarget(lvl);
+    return { id: q.id, name: q.name, desc: q.desc.replace('{target}', formatNumber(target)), type: q.type, target, reward: q.reward(lvl), progress: 0, claimed: false };
+  });
+  const savedGT = game.dailyQuestProgress ? game.dailyQuestProgress.goldenTotal || 0 : 0;
+  game.dailyQuestProgress = { clicks: 0, earn: 0, upgrades: 0, combo: 0, crits: 0, golden: 0, goldenTotal: savedGT };
+  saveGame();
+}
+
+function updateDailyQuests(dt) {
+  generateDailyQuests();
+  if (!game.dailyQuests) return;
+  let changed = false;
+  const progress = game.dailyQuestProgress || {};
+  game.dailyQuests.forEach(q => {
+    if (q.claimed) return;
+    let val = 0;
+    if (q.type === 'clicks') val = progress.clicks || 0;
+    else if (q.type === 'earn') val = Math.floor(game.totalGenerated);
+    else if (q.type === 'upgrades') val = progress.upgrades || 0;
+    else if (q.type === 'combo') val = Math.max(progress.combo || 0, game.combo);
+    else if (q.type === 'crits') val = progress.crits || 0;
+    else if (q.type === 'golden') val = progress.golden || 0;
+
+    if (val !== q.progress) {
+      q.progress = Math.min(val, q.target);
+      changed = true;
+    }
+  });
+  if (changed) saveGame();
+}
+
+function claimDailyQuest(index) {
+  if (!game.dailyQuests || index >= game.dailyQuests.length) return;
+  const q = game.dailyQuests[index];
+  if (q.claimed || q.progress < q.target) return;
+  q.claimed = true;
+  game.numbers += q.reward;
+  game.totalGenerated += q.reward;
+  updateDisplay();
+  saveGame();
+}
+
+function updateDailyTabBadge() {
+  const tab = document.querySelector('[data-tab="daily"]');
+  if (!tab || !game.dailyQuests) return;
+  const completable = game.dailyQuests.filter(q => !q.claimed && q.progress >= q.target).length;
+  if (completable > 0) {
+    tab.textContent = '每日 (' + completable + ')';
+    tab.style.color = '#6ec6ff';
+  } else {
+    tab.textContent = '每日';
+    tab.style.color = '';
+  }
+}
+
+function renderDailyQuests() {
+  const panel = document.getElementById('panel-daily');
+  if (!panel || !panel.classList.contains('active')) return;
+  generateDailyQuests();
+  if (!game.dailyQuests) return;
+  panel.innerHTML = '<div class="section-title">📋 每日任务</div>' + game.dailyQuests.map((q, i) => {
+    const done = q.progress >= q.target;
+    const claimed = q.claimed;
+    let cls = 'quest-card';
+    if (claimed) cls += ' claimed';
+    else if (done) cls += ' completable';
+    const progressPct = Math.min(100, (q.progress / q.target) * 100);
+    return `<div class="quest-card ${cls}" data-qidx="${i}">
+      <div class="quest-info">
+        <div class="quest-name">${q.name}</div>
+        <div class="quest-desc">${q.desc}</div>
+        <div class="quest-progress-bar"><div class="quest-progress-fill" style="width:${progressPct}%"></div></div>
+        <div class="quest-progress-text">${formatNumber(q.progress)} / ${formatNumber(q.target)}</div>
+      </div>
+      <div class="quest-reward">
+        ${claimed ? '<span class="quest-done">✅</span>' : (done ? '<button class="quest-claim-btn">领取 +' + formatNumber(q.reward) + '</button>' : '<span class="quest-pending">+' + formatNumber(q.reward) + '</span>')}
+      </div>
+    </div>`;
+  }).join('');
+
+  // 绑定领取按钮
+  panel.querySelectorAll('.quest-claim-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = parseInt(btn.closest('.quest-card').dataset.qidx);
+      claimDailyQuest(idx);
+    });
+  });
+}
+
+// ========== 主题系统 ==========
+const themes = [
+  { id: 'default', name: '暗夜紫',   colors: { bg:'#0a0a1a',display:'#111133',border:'#2a2a5a',accent:'#c44dff',clickBg:'#222244',cardBg:'#111133' } },
+  { id: 'ocean',   name: '深海蓝',   colors: { bg:'#0a1628',display:'#0d2137',border:'#1a4a6a',accent:'#4da6ff',clickBg:'#1a2a44',cardBg:'#0d2137' }, unlock: { prestigeCount: 1 } },
+  { id: 'forest',  name: '翡翠绿',   colors: { bg:'#0a1a0f',display:'#0d280d',border:'#1a5a2a',accent:'#4dff6e',clickBg:'#1a331a',cardBg:'#0d280d' }, unlock: { prestigeCount: 3 } },
+  { id: 'sunset',  name: '日落橙',   colors: { bg:'#1a0f0a',display:'#28150d',border:'#5a2a1a',accent:'#ff8c4d',clickBg:'#331a1a',cardBg:'#28150d' }, unlock: { prestigeCount: 5 } },
+  { id: 'cyber',   name: '赛博朋克', colors: { bg:'#0a0a0a',display:'#111a11',border:'#1a5a3a',accent:'#00ff88',clickBg:'#1a221a',cardBg:'#111a11' }, unlock: { totalClicks: 10000 } },
+];
+
+function applyTheme(id) {
+  const t = themes.find(t => t.id === id) || themes[0];
+  game.theme = id;
+  const c = t.colors;
+  document.body.style.background = c.bg;
+  document.querySelectorAll('.display-area').forEach(el => { el.style.background = 'linear-gradient(145deg,' + c.display + ',' + c.bg + ')'; el.style.borderColor = c.border; });
+  document.querySelectorAll('.upgrade-card').forEach(el => { el.style.background = c.cardBg; });
+  document.querySelectorAll('.prestige-card').forEach(el => { el.style.background = c.cardBg; });
+  document.querySelectorAll('.click-button').forEach(el => { el.style.background = c.clickBg; });
+  renderThemeSelector();
+  saveGame();
+}
+
+function isThemeUnlocked(t) {
+  if (!t.unlock) return true;
+  for (const [key, val] of Object.entries(t.unlock)) {
+    if ((game[key] || 0) < val) return false;
+  }
+  return true;
+}
+
+function renderThemeSelector() {
+  const sel = document.getElementById('themeSelector');
+  if (!sel) return;
+  sel.innerHTML = '';
+  themes.forEach(t => {
+    const dot = document.createElement('div');
+    dot.className = 'theme-dot';
+    dot.title = t.name + (isThemeUnlocked(t) ? '' : ' (锁定)');
+    dot.style.background = 'linear-gradient(135deg,' + t.colors.accent + ',' + t.colors.bg + ')';
+    if (t.id === game.theme) dot.classList.add('active');
+    if (!isThemeUnlocked(t)) dot.classList.add('locked');
+    else dot.addEventListener('click', () => applyTheme(t.id));
+    sel.appendChild(dot);
+  });
+}
+
+// ========== 初始化 ==========
+function init() {
+  createStars();
+  initUpgrades();
+  initAchievements();
+  initPrestigeUpgrades();
+  loadGame();
+
+  // 兼容旧数据
+  if (!game.idleTime) game.idleTime = 0;
+  if (!game.goldenTimer) game.goldenTimer = 20;
+  if (!game.dailyQuestProgress) game.dailyQuestProgress = { clicks: 0, earn: 0, upgrades: 0, combo: 0, crits: 0, golden: 0, goldenTotal: 0 };
+  if (!game.autoBuy) game.autoBuy = false;
+  if (!game.theme) game.theme = 'default';
+  if (game.soundEnabled === undefined) game.soundEnabled = true;
+  if (!game.prestigeBestRun) game.prestigeBestRun = 0;
+  if (!game.prestigeFastest) game.prestigeFastest = 0;
+  if (!game.totalEvents) game.totalEvents = 0;
+  if (!game.prestigeHistory) game.prestigeHistory = [];
+  if (!game.bestCombo) game.bestCombo = 0;
+  if (!game.challengesCompleted) game.challengesCompleted = 0;
+  if (!game.challengesFailed) game.challengesFailed = 0;
+
+  recalcAllEffects();
+  renderUpgrades();
+  renderAchievements();
+  renderStats();
+  updateDisplay();
+  updateBuyAllButton();
+  generateDailyQuests();
+  renderThemeSelector();
+  applyTheme(game.theme);
+
+  // 初始化事件冷却
+  if (!game.eventCooldown || game.eventCooldown <= 0) {
+    game.eventCooldown = getEventCooldownMin() + Math.random() * (getEventCooldownMax() - getEventCooldownMin());
+  }
+
+  // 点击处理
+  const clickBtn = document.getElementById('clickBtn');
+  clickBtn.addEventListener('click', doClick);
+  clickBtn.addEventListener('touchstart', (e) => { e.preventDefault(); doClick(e); });
+  // 涟漪效果
+  clickBtn.addEventListener('click', function(e) {
+    const ripple = document.createElement('span');
+    ripple.className = 'ripple';
+    const rect = this.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    ripple.style.width = ripple.style.height = size + 'px';
+    ripple.style.left = (e.clientX - rect.left - size/2) + 'px';
+    ripple.style.top = (e.clientY - rect.top - size/2) + 'px';
+    this.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 600);
+  });
+
+  // 升级面板事件委托
+  document.getElementById('upgradeList').addEventListener('click', handleUpgradeClick);
+
+  // 全部购买
+  document.getElementById('buyAllBtn').addEventListener('click', buyAllAffordable);
+
+  // 转生
+  document.getElementById('prestigeBtn').addEventListener('click', doPrestige);
+
+  // 重置
+  document.getElementById('resetBtn').addEventListener('click', resetGame);
+  document.getElementById('exportBtn').addEventListener('click', exportSave);
+  document.getElementById('importBtn').addEventListener('click', importSave);
+
+  // 标签切换
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+  });
+
+  // 移动端滑动手势切换标签
+  let touchStartX = 0;
+  let touchStartY = 0;
+  const tabOrderKeys = ['upgrades', 'daily', 'prestige', 'achievements', 'stats'];
+  document.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+  document.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return;
+    const idx = tabOrderKeys.indexOf(currentTab);
+    if (dx < 0 && idx < tabOrderKeys.length - 1) {
+      switchTab(tabOrderKeys[idx + 1]);
+    } else if (dx > 0 && idx > 0) {
+      switchTab(tabOrderKeys[idx - 1]);
+    }
+  });
+
+  // 键盘快捷键
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.code === 'Space' || e.code === 'Enter') {
+      e.preventDefault();
+      doClick({ clientX: window.innerWidth/2, clientY: window.innerHeight/2 });
+    } else if (e.code === 'Digit1') switchTab(tabOrderKeys[0]);
+    else if (e.code === 'Digit2') switchTab(tabOrderKeys[1]);
+    else if (e.code === 'Digit3') switchTab(tabOrderKeys[2]);
+    else if (e.code === 'Digit4') switchTab(tabOrderKeys[3]);
+    else if (e.code === 'Digit5') switchTab(tabOrderKeys[4]);
+    else if (e.code === 'KeyB' && e.ctrlKey) {
+      e.preventDefault();
+      toggleAutoBuy();
+    }
+    else if (e.code === 'KeyM') {
+      game.soundEnabled = !game.soundEnabled;
+      showUpgradeToast(game.soundEnabled ? '音效: 开' : '音效: 关', '');
+    }
+    else if (e.code === 'KeyN') {
+      game.scientificNotation = !game.scientificNotation;
+      showUpgradeToast(game.scientificNotation ? '科学计数法: 开' : '科学计数法: 关', '');
+    }
+  });
+
+  // 自动购买按钮
+  addAutoBuyToggle();
+
+  lastTick = Date.now();
+  requestAnimationFrame(gameLoop);
+}
+
+init();
+</script>
+</body>
+</html>
