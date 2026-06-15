@@ -12,7 +12,7 @@ import asyncio
 import json
 
 PORT = 3000
-WATCH_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'infinite-rpg.html')
+WATCH_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'index.html')
 
 LIVE_RELOAD_SCRIPT = f"""
 <script>
