@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 3000;
-const WATCH_FILE = path.join(__dirname, 'infinite-rpg.html');
+const WATCH_FILE = path.join(__dirname, 'index.html');
 
 // 注入到HTML中的热更新脚本
 const LIVE_RELOAD_SCRIPT = `
