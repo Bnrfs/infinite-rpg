@@ -2170,23 +2170,74 @@ function updateKillStreak(){
   }
 }
 
-// ==================== 存档系统 ====================
+// ==================== 存档系统（多槽位） ====================
+const MAX_SLOTS=5;
+const SLOT_KEY='infiniteRpgSave_slots';
+const ACTIVE_KEY='infiniteRpgSave_activeSlot';
+
+function getSaveSlots(){
+  try{return JSON.parse(localStorage.getItem(SLOT_KEY))||[];}catch(e){return [];}
+}
+function saveSlots(slots){
+  try{localStorage.setItem(SLOT_KEY,JSON.stringify(slots));}catch(e){}
+}
+function getActiveSlot(){
+  return localStorage.getItem(ACTIVE_KEY)||'';
+}
+function setActiveSlot(id){
+  localStorage.setItem(ACTIVE_KEY,id);
+}
+
 function saveGame(){
-  localStorage.setItem('infiniteRpgSave_v2',JSON.stringify(State.player));
+  const p=State.player;
+  const slotId=getActiveSlot();
+  if(!slotId)return addLog('⚠️ 存档槽位异常，请返回主菜单重新开始','log-warning');
+  try{localStorage.setItem('infiniteRpgSave_slot_'+slotId,JSON.stringify(p));}catch(e){addLog('⚠️ 保存失败：存储空间不足','log-warning');return;}
+  // 更新槽位元数据
+  const slots=getSaveSlots();
+  const idx=slots.findIndex(s=>s.id===slotId);
+  if(idx>=0){
+    slots[idx].name=p.name||'无名';
+    slots[idx].level=p.level||1;
+    slots[idx].lastPlayed=new Date().toLocaleString('zh-CN');
+    slots[idx].time=Date.now();
+  }
+  saveSlots(slots);
   addLog('💾 游戏已保存！','log-system');
 }
 
 function autoSave(){
-  try{localStorage.setItem('infiniteRpgSave_v2',JSON.stringify(State.player));}catch(e){}
+  const slotId=getActiveSlot();
+  if(!slotId)return;
+  try{localStorage.setItem('infiniteRpgSave_slot_'+slotId,JSON.stringify(State.player));}catch(e){}
+  // 静默更新元数据
+  const p=State.player;
+  const slots=getSaveSlots();
+  const idx=slots.findIndex(s=>s.id===slotId);
+  if(idx>=0){
+    slots[idx].name=p.name||'无名';
+    slots[idx].level=p.level||1;
+    slots[idx].lastPlayed=new Date().toLocaleString('zh-CN');
+    slots[idx].time=Date.now();
+    saveSlots(slots);
+  }
 }
-function loadGame(){
-  const d=localStorage.getItem('infiniteRpgSave_v2');
+
+function loadGame(slotId){
+  const d=localStorage.getItem('infiniteRpgSave_slot_'+slotId);
   if(!d)return false;
-  try{const s=JSON.parse(d);Object.assign(State.player,s);recalcStats();applyBuffs();updateTopBar();return true;}
+  try{const s=JSON.parse(d);Object.assign(State.player,s);setActiveSlot(slotId);recalcStats();applyBuffs();updateTopBar();return true;}
   catch(e){return false;}
 }
 
-// ==================== 云端存档系统 ====================
+function deleteSlot(slotId){
+  localStorage.removeItem('infiniteRpgSave_slot_'+slotId);
+  const slots=getSaveSlots().filter(s=>s.id!==slotId);
+  saveSlots(slots);
+  if(getActiveSlot()===slotId)setActiveSlot('');
+}
+
+// ==================== 云端存档系统（多槽位） ====================
 let cloudGistId=localStorage.getItem('rpg_cloud_gist_id')||'';
 let cloudToken=localStorage.getItem('rpg_cloud_token')||'';
 
@@ -2200,25 +2251,28 @@ async function ensureCloudToken(){
 }
 
 async function cloudSave(){
-  if(!State.player||!State.player.name)return addLog('⚠️ 请先开始游戏！','log-warning');
   if(!await ensureCloudToken())return;
-  const saveData=JSON.stringify(State.player);
-  const filename='infinite-rpg-save.json';
+  // 打包所有存档槽位
+  const slots=getSaveSlots();
+  const allData={slots:slots,saves:{}};
+  for(const slot of slots){
+    const d=localStorage.getItem('infiniteRpgSave_slot_'+slot.id);
+    if(d)allData.saves[slot.id]=d;
+  }
+  const content=JSON.stringify(allData);
   try{
     let resp;
     if(cloudGistId){
-      // 更新已有Gist
       resp=await fetch(`https://api.github.com/gists/${cloudGistId}`,{
         method:'PATCH',
         headers:{'Authorization':`token ${cloudToken}`,'Content-Type':'application/json'},
-        body:JSON.stringify({files:{[filename]:{content:saveData}}})
+        body:JSON.stringify({files:{'infinite-rpg-save.json':{content}}})
       });
     }else{
-      // 创建新Gist
       resp=await fetch('https://api.github.com/gists',{
         method:'POST',
         headers:{'Authorization':`token ${cloudToken}`,'Content-Type':'application/json'},
-        body:JSON.stringify({description:'无限流RPG存档',public:false,files:{[filename]:{content:saveData}}})
+        body:JSON.stringify({description:'无限流RPG存档',public:false,files:{'infinite-rpg-save.json':{content}}})
       });
     }
     if(!resp.ok)throw new Error(await resp.text());
@@ -2226,16 +2280,12 @@ async function cloudSave(){
     cloudGistId=data.id;
     localStorage.setItem('rpg_cloud_gist_id',cloudGistId);
     const time=new Date().toLocaleString('zh-CN');
-    addLog(`☁️ 云存档成功！(${time})`,'log-system');
-    addLog('📱 现在可以在手机/其他设备上读取存档了','log-info');
+    addLog(`☁️ 云存档成功！(${slots.length}个存档，${time})`,'log-system');
   }catch(e){
     addLog(`☁️ 云存档失败: ${e.message}`,'log-warning');
-    // 如果Token无效，清除
     if(e.message.includes('401')){
-      localStorage.removeItem('rpg_cloud_token');
-      cloudToken='';
-      cloudGistId='';
-      localStorage.removeItem('rpg_cloud_gist_id');
+      localStorage.removeItem('rpg_cloud_token');cloudToken='';
+      localStorage.removeItem('rpg_cloud_gist_id');cloudGistId='';
       addLog('⚠️ Token已失效，请重新设置','log-warning');
     }
   }
@@ -2244,7 +2294,6 @@ async function cloudSave(){
 async function cloudLoad(){
   if(!await ensureCloudToken())return;
   if(!cloudGistId){
-    // 尝试列出用户的Gist来找到存档
     try{
       const resp=await fetch('https://api.github.com/gists?per_page=100',{
         headers:{'Authorization':`token ${cloudToken}`}
@@ -2252,35 +2301,37 @@ async function cloudLoad(){
       if(!resp.ok)throw new Error(await resp.text());
       const gists=await resp.json();
       const saveGist=gists.find(g=>g.description==='无限流RPG存档'&&g.files&&g.files['infinite-rpg-save.json']);
-      if(!saveGist){
-        addLog('⚠️ 未找到云存档，请先在PC端上传一次存档','log-warning');
-        return;
-      }
+      if(!saveGist){addLog('⚠️ 未找到云存档，请先在PC端上传一次','log-warning');return;}
       cloudGistId=saveGist.id;
       localStorage.setItem('rpg_cloud_gist_id',cloudGistId);
-    }catch(e){
-      addLog(`⚠️ 查找云存档失败: ${e.message}`,'log-warning');
-      return;
-    }
+    }catch(e){addLog('⚠️ 查找云存档失败: '+e.message,'log-warning');return;}
   }
   try{
     const resp=await fetch(`https://api.github.com/gists/${cloudGistId}`,{
       headers:{'Authorization':`token ${cloudToken}`}
     });
     if(!resp.ok)throw new Error(await resp.text());
-    const data=await resp.json();
-    const content=data.files['infinite-rpg-save.json']?.content;
+    const gistData=await resp.json();
+    const content=gistData.files['infinite-rpg-save.json']?.content;
     if(!content){addLog('⚠️ 云存档内容为空','log-warning');return;}
-    const saveData=JSON.parse(content);
-    if(!confirm('确定要从云端加载存档吗？\n当前本地存档将被覆盖！'))return;
-    Object.assign(State.player,saveData);
-    localStorage.setItem('infiniteRpgSave_v2',JSON.stringify(State.player));
-    recalcStats();applyBuffs();updateTopBar();
-    renderHub();
-    addLog('☁️ 云存档加载成功！欢迎回来！','log-system');
-  }catch(e){
-    addLog(`⚠️ 云存档加载失败: ${e.message}`,'log-warning');
-  }
+    const allData=JSON.parse(content);
+    if(!allData.slots||!allData.saves){addLog('⚠️ 云存档格式错误','log-warning');return;}
+    // 合并到本地
+    const localSlots=getSaveSlots();
+    let imported=0;
+    for(const slot of allData.slots){
+      if(allData.saves[slot.id]){
+        localStorage.setItem('infiniteRpgSave_slot_'+slot.id,allData.saves[slot.id]);
+        if(!localSlots.find(s=>s.id===slot.id)){
+          localSlots.push(slot);
+          imported++;
+        }
+      }
+    }
+    saveSlots(localSlots);
+    addLog(`☁️ 云存档加载成功！导入了 ${imported} 个新存档`,'log-system');
+    renderMainMenu();
+  }catch(e){addLog('⚠️ 云存档加载失败: '+e.message,'log-warning');}
 }
 
 // ==================== 成就检查 ====================
@@ -2299,23 +2350,122 @@ function checkAchievements(){
 
 // ==================== 主菜单 ====================
 function renderMainMenu(){
-  clearLog();const hasSave=!!localStorage.getItem('infiniteRpgSave_v2');
-  actionPanel.innerHTML=`
+  clearLog();
+  const slots=getSaveSlots();
+  slots.sort((a,b)=>(b.time||0)-(a.time||0));
+  let html=`
     <h2>🌀 无限流RPG · 轮回试炼</h2>
     <div style="text-align:center;color:#888;font-size:13px;margin:5px 0;line-height:1.6;">
       你是一名被选中的<strong style="color:#cc88ff;">轮回者</strong>，<br>
       穿梭于不同的世界，完成试炼，获得力量。<br>
       <span style="color:#ff9944;">— 每个副本都是独特的世界，每次战斗都是生死考验 —</span>
-    </div>
-    <div class="btn-group" style="flex-direction:column;">
-      <button class="btn btn-primary" onclick="startNewGame()">🆕 新的轮回</button>
-      ${hasSave?'<button class="btn btn-success" onclick="continueGame()">📂 继续轮回</button>':''}
-      ${hasSave?'<button class="btn btn-danger" onclick="confirmDeleteSave()">🗑️ 删除存档</button>':''}
-    </div>
-  `;
+    </div>`;
+
+  // 已有存档列表
+  if(slots.length>0){
+    html+=`<div style="margin:8px 0;"><strong>📂 已有存档 (${slots.length}/${MAX_SLOTS})</strong></div>`;
+    html+=`<div style="max-height:240px;overflow-y:auto;">`;
+    for(const slot of slots){
+      html+=`<div style="display:flex;align-items:center;justify-content:space-between;background:#1a1a2e;padding:8px;margin:4px 0;border-radius:6px;border:1px solid #333;">`;
+      html+=`<div style="flex:1;min-width:0;">`;
+      html+=`<div style="color:#ccddff;font-weight:bold;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">👤 ${slot.name||'无名'}</div>`;
+      html+=`<div style="color:#888;font-size:11px;">Lv.${slot.level||1} | ${slot.lastPlayed||'未知'}</div>`;
+      html+=`</div>`;
+      html+=`<div style="display:flex;gap:4px;flex-shrink:0;">`;
+      html+=`<button class="btn btn-success" style="padding:4px 10px;font-size:11px;" onclick="continueSlot('${slot.id}')">▶ 继续</button>`;
+      html+=`<button class="btn btn-danger" style="padding:4px 8px;font-size:11px;" onclick="confirmDeleteSlot('${slot.id}','${slot.name||'无名'}')">🗑</button>`;
+      html+=`</div></div>`;
+    }
+    html+=`</div>`;
+  }
+
+  // 新建存档
+  if(slots.length<MAX_SLOTS){
+    html+=`<div class="btn-group" style="flex-direction:column;margin-top:8px;">`;
+    html+=`<button class="btn btn-primary" onclick="newSlot()">🆕 新建存档 (${slots.length}/${MAX_SLOTS})</button>`;
+    html+=`</div>`;
+  }else{
+    html+=`<div style="text-align:center;color:#ff8844;margin:8px 0;">存档已满 (${MAX_SLOTS}/${MAX_SLOTS})，请先删除一个</div>`;
+  }
+
+  // 云存档
+  html+=`<div class="btn-group" style="margin-top:8px;">`;
+  html+=`<button class="btn btn-warning" style="flex:1;" onclick="cloudSave()">☁️ 上传云存档</button>`;
+  html+=`<button class="btn btn-info" style="flex:1;" onclick="cloudLoad()">📥 下载云存档</button>`;
+  html+=`</div>`;
+
+  actionPanel.innerHTML=html;
   addLog('欢迎来到无限流RPG世界...','log-system');
   addLog('在这里，你将穿梭于不同的副本世界，挑战强敌，获取力量。','log-info');
-  addLog('准备好开始你的冒险了吗？','log-info');
+  addLog('支持多个存档槽位，每个存档独立保存。','log-info');
+}
+
+function newSlot(){
+  const name=prompt('请输入你的角色名：','轮回者')||'轮回者';
+  const slotId='slot_'+Date.now()+'_'+Math.random().toString(36).substr(2,8);
+  const slots=getSaveSlots();
+  slots.push({id:slotId,name:name,level:1,lastPlayed:new Date().toLocaleString('zh-CN'),time:Date.now()});
+  saveSlots(slots);
+  setActiveSlot(slotId);
+  startNewGame();
+  // 更新角色名
+  State.player.name=name;
+  State.player._slotId=slotId;
+  saveGame();
+  // 播放开场动画
+  playCinematicIntro();
+}
+
+function continueSlot(slotId){
+  if(loadGame(slotId)){
+    const p=State.player;
+    // 存档迁移
+    if(!p._storylineProgress)p._storylineProgress=0;
+    if(!p._unlockedLore)p._unlockedLore=[];
+    if(!p._npcTalkedTo)p._npcTalkedTo={};
+    if(!p._readLore)p._readLore=[];
+    if(!p._clearedInstanceIds)p._clearedInstanceIds=[];
+    if(!p._bossRushCleared)p._bossRushCleared=0;
+    if(!p._bossRushRound)p._bossRushRound=0;
+    if(!p._arenaHighestWave)p._arenaHighestWave=0;
+    if(!p._phoenixUsed)p._phoenixUsed=0;
+    if(!p._runeInventory)p._runeInventory=[];
+    if(!p._soulFragments)p._soulFragments=0;
+    if(!p._completedContracts)p._completedContracts=[];
+    if(!p._craftMats)p._craftMats={};
+    if(!p._elementalTrialsCleared)p._elementalTrialsCleared={};
+    if(!p.enhancementStones)p.enhancementStones=0;
+    if(!p._protectionStones)p._protectionStones=0;
+    if(!p._bounties)p._bounties=[];
+    if(!p._bountyReputation)p._bountyReputation=0;
+    if(!p._bountiesCompleted)p._bountiesCompleted=0;
+    if(!p._towerFloor)p._towerFloor=0;
+    if(!p._fateWheelLastSpin)p._fateWheelLastSpin=0;
+    if(!p._fateShield)p._fateShield=0;
+    if(!p._fateAtkBuff)p._fateAtkBuff=0;
+    if(!p._fateWheelSpinCount)p._fateWheelSpinCount=0;
+    if(!p._deathCount)p._deathCount=0;
+    p.inventory.forEach(item=>{if(!item._socketedRunes)item._socketedRunes=[];});
+    ['weapon','armor','accessory'].forEach(s=>{if(p.equipment[s]&&!p.equipment[s]._socketedRunes)p.equipment[s]._socketedRunes=[];});
+    State.combat.active=false;State.shieldTurns=0;State.petTurnCounter=0;
+    State.isAbyss=false;State.abyssFloor=0;State.isBossRush=false;State.bossRushIndex=0;
+    State.isArena=false;State.arenaWave=0;
+    State.autoBattle=false;State.combatSpeed=4;State.craftSlots=[];
+    recalcStats();applyBuffs();updateTopBar();
+    clearLog();addLog('📂 存档加载成功！欢迎回来，'+p.name+'。','log-system');
+    renderHub();
+  }
+}
+
+function confirmDeleteSlot(slotId,name){
+  actionPanel.innerHTML=`
+    <h2>🗑️ 删除存档</h2>
+    <div style="text-align:center;color:#ff6666;margin:10px 0;">确定要删除【${name}】的存档吗？此操作不可撤销！</div>
+    <div class="btn-group">
+      <button class="btn btn-danger" onclick="deleteSlot('${slotId}');renderMainMenu();">确认删除</button>
+      <button class="btn" onclick="renderMainMenu()">取消</button>
+    </div>
+  `;
 }
 
 // ==================== 开场剧情动画 ====================
@@ -2612,51 +2762,6 @@ function startNewGame(){
   clearLog();
   // 播放开场动画
   playCinematicIntro();
-}
-
-function continueGame(){
-  if(loadGame()){
-    // 存档迁移：确保新字段存在
-    const p=State.player;
-    if(!p._storylineProgress)p._storylineProgress=0;
-    if(!p._unlockedLore)p._unlockedLore=[];
-    if(!p._npcTalkedTo)p._npcTalkedTo={};
-    if(!p._readLore)p._readLore=[];
-    if(!p._clearedInstanceIds)p._clearedInstanceIds=[];
-    if(!p._bossRushCleared)p._bossRushCleared=0;
-    if(!p._bossRushRound)p._bossRushRound=0;
-    if(!p._arenaHighestWave)p._arenaHighestWave=0;
-    if(!p._phoenixUsed)p._phoenixUsed=0;
-    if(!p._towerFloor)p._towerFloor=0;
-    if(!p.equippedSkills)p.equippedSkills=['蓄力一击'];
-    if(!p._elementalTrialsCleared)p._elementalTrialsCleared={};
-    if(!p._fateWheelLastSpin)p._fateWheelLastSpin=0;
-    if(!p._fateShield)p._fateShield=0;
-    if(!p._fateAtkBuff)p._fateAtkBuff=0;
-    if(!p._fateWheelSpinCount)p._fateWheelSpinCount=0;
-    if(!p._deathCount)p._deathCount=0;
-    if(!p._runeInventory)p._runeInventory=[];
-    if(!p._soulFragments)p._soulFragments=0;
-    if(!p._completedContracts)p._completedContracts=[];
-    if(!p._craftMats)p._craftMats={};
-    // 确保装备有socketedRunes字段
-    p.inventory.forEach(item=>{if(!item._socketedRunes)item._socketedRunes=[];});
-    ['weapon','armor','accessory'].forEach(s=>{if(p.equipment[s]&&!p.equipment[s]._socketedRunes)p.equipment[s]._socketedRunes=[];});
-    State.combat.active=false;State.shieldTurns=0;State.petTurnCounter=0;
-    State.isAbyss=false;State.abyssFloor=0;State.isBossRush=false;State.bossRushIndex=0;
-  State.isArena=false;State.arenaWave=0;
-    State.autoBattle=false;State.combatSpeed=4;State.craftSlots=[];
-    recalcStats();applyBuffs();updateTopBar();
-    clearLog();addLog('📂 存档加载成功！欢迎回来，轮回者。','log-system');
-    renderHub();
-  }
-}
-function confirmDeleteSave(){
-  actionPanel.innerHTML=`
-    <h2>⚠️ 确认删除</h2>
-    <div style="text-align:center;color:#ff6666;margin:10px 0;">确定要删除存档吗？此操作不可撤销！</div>
-    <div class="btn-group"><button class="btn btn-danger" onclick="localStorage.removeItem('infiniteRpgSave_v2');renderMainMenu();">确认删除</button><button class="btn" onclick="renderMainMenu()">取消</button></div>
-  `;
 }
 
 // ==================== 称号系统 ====================
