@@ -10,6 +10,11 @@ import time
 import threading
 import asyncio
 import json
+import sys
+import io
+
+# 修复Windows控制台编码问题
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
 PORT = 3000
 WATCH_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'index.html')
@@ -67,12 +72,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         pass  # 静默模式
 
 print(f"""
-╔══════════════════════════════════════════╗
-║   🎮 无限流RPG - 开发服务器已启动      ║
-║   地址: http://localhost:{PORT}           ║
-║   修改文件后浏览器自动刷新 ✨           ║
-║   按 Ctrl+C 停止服务器                 ║
-╚══════════════════════════════════════════╝
+==========================================
+  无限流RPG - 开发服务器已启动
+  地址: http://localhost:{PORT}
+  修改文件后浏览器自动刷新
+  按 Ctrl+C 停止服务器
+==========================================
 """)
 
 with socketserver.TCPServer(("", PORT), Handler) as httpd:
