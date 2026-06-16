@@ -69,7 +69,7 @@ body{
   overflow-y:auto;
   scroll-behavior:smooth;
 }
-#action-panel > *:last-child{margin-bottom:50px;}
+#action-panel::after{content:'';display:block;height:50px;flex-shrink:0;}
 #action-panel h2{
   font-size:17px;color:#cc88ff;text-align:center;
   padding:7px;background:rgba(100,60,200,0.15);
