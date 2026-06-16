@@ -68,6 +68,8 @@ body{
   display:flex;flex-direction:column;gap:8px;
   overflow-y:auto;
   scroll-behavior:smooth;
+  scroll-padding-bottom:60px;
+  padding-bottom:60px;
 }
 #action-panel h2{
   font-size:17px;color:#cc88ff;text-align:center;
@@ -89,6 +91,9 @@ body{
 .btn-danger:hover{background:rgba(180,40,40,0.6);}
 .btn-back{background:rgba(100,60,200,0.2);color:#aa88dd;border:1px solid #3a2a60;font-size:11px;padding:4px 12px;width:auto;margin-bottom:4px;}
 .btn-back:hover{background:rgba(120,80,220,0.35);color:#ccbbff;}
+/* 底部返回按钮强制留白 */
+#action-panel button[onclick*="renderHub"],
+#action-panel button[onclick*="renderLoreJournal"]{margin-bottom:60px;}
 .btn-success{background:rgba(30,120,40,0.6);border-color:#339944;color:#aaffaa;}
 .btn-success:hover{background:rgba(40,150,50,0.6);}
 .btn-warning{background:rgba(140,100,20,0.6);border-color:#aa8833;color:#ffddaa;}
@@ -1872,7 +1877,16 @@ const actionPanel=$('#action-panel');
   const desc=Object.getOwnPropertyDescriptor(Element.prototype,'innerHTML');
   Object.defineProperty(actionPanel,'innerHTML',{
     get:function(){return desc.get.call(this);},
-    set:function(html){desc.set.call(this,html+'<div style="height:60px;flex-shrink:0;width:100%;"></div>');},
+    set:function(html){
+      const spacer='<div class="panel-spacer" style="height:60px;flex-shrink:0;width:100%;"></div>';
+      const final=html+spacer;
+      if(final.length!==html.length){
+        console.log('[panel-hijack] spacer appended, html end:',html.slice(-60));
+        try{if(window._panelHijackLog)(window._panelHijackLog++);}
+        catch(e){}
+      }
+      desc.set.call(this,final);
+    },
     configurable:true
   });
 })();
