@@ -1867,12 +1867,15 @@ const $=s=>document.querySelector(s);
 const logPanel=$('#log-panel');
 const actionPanel=$('#action-panel');
 
-// 自动在actionPanel底部添加留白，确保返回按钮不被遮挡
-new MutationObserver(()=>{
-  if(!actionPanel.querySelector(':scope>.panel-spacer')){
-    actionPanel.insertAdjacentHTML('beforeend','<div class="panel-spacer" style="height:50px;flex-shrink:0;"></div>');
-  }
-}).observe(actionPanel,{childList:true});
+// 劫持innerHTML，自动在内容末尾追加底部留白
+(function(){
+  const desc=Object.getOwnPropertyDescriptor(Element.prototype,'innerHTML');
+  Object.defineProperty(actionPanel,'innerHTML',{
+    get:function(){return desc.get.call(this);},
+    set:function(html){desc.set.call(this,html+'<div style="height:60px;flex-shrink:0;width:100%;"></div>');},
+    configurable:true
+  });
+})();
 const comboDisplay=$('#combo-display');
 
 function addLog(msg,cls='log-info'){
