@@ -1878,7 +1878,7 @@ const actionPanel=$('#action-panel');
   Object.defineProperty(actionPanel,'innerHTML',{
     get:function(){return desc.get.call(this);},
     set:function(html){
-      const spacer='<div class="panel-spacer" style="height:60px;flex-shrink:0;width:100%;"></div>';
+      const spacer='<div class="panel-spacer" style="border-top:60px solid transparent;flex-shrink:0;width:100%;"></div>';
       const final=html+spacer;
       if(final.length!==html.length){
         console.log('[panel-hijack] spacer appended, html end:',html.slice(-60));
