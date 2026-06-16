@@ -12,6 +12,7 @@ import asyncio
 import json
 import sys
 import io
+from urllib.parse import urlparse
 
 # 修复Windows控制台编码问题
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -43,8 +44,10 @@ last_mtime = os.path.getmtime(WATCH_FILE)
 class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         global last_mtime
+        parsed = urlparse(self.path)
+        path = parsed.path
         
-        if self.path == '/__check_update':
+        if path == '/__check_update':
             current_mtime = os.path.getmtime(WATCH_FILE)
             updated = current_mtime > last_mtime
             if updated:
@@ -56,7 +59,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({'updated': updated, 'mtime': current_mtime}).encode())
             return
         
-        if self.path in ['/', '/index.html', '/infinite-rpg.html']:
+        if path in ['/', '/index.html', '/infinite-rpg.html']:
             with open(WATCH_FILE, 'r', encoding='utf-8') as f:
                 html = f.read()
             html = html.replace('</body>', LIVE_RELOAD_SCRIPT + '\n</body>')

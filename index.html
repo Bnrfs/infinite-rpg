@@ -65,10 +65,19 @@ body{
 
 #action-panel{
   width:340px;
-  display:flex;flex-direction:column;gap:8px;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+#action-panel-inner{
+  flex:1;
   overflow-y:auto;
   scroll-behavior:smooth;
-  scroll-padding-bottom:60px;
+}
+#action-panel-content{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
   padding-bottom:60px;
 }
 #action-panel h2{
@@ -91,9 +100,6 @@ body{
 .btn-danger:hover{background:rgba(180,40,40,0.6);}
 .btn-back{background:rgba(100,60,200,0.2);color:#aa88dd;border:1px solid #3a2a60;font-size:11px;padding:4px 12px;width:auto;margin-bottom:4px;}
 .btn-back:hover{background:rgba(120,80,220,0.35);color:#ccbbff;}
-/* 底部返回按钮强制留白 */
-#action-panel button[onclick*="renderHub"],
-#action-panel button[onclick*="renderLoreJournal"]{margin-bottom:60px;}
 .btn-success{background:rgba(30,120,40,0.6);border-color:#339944;color:#aaffaa;}
 .btn-success:hover{background:rgba(40,150,50,0.6);}
 .btn-warning{background:rgba(140,100,20,0.6);border-color:#aa8833;color:#ffddaa;}
@@ -629,7 +635,7 @@ body{
   <div id="main-area">
     <div id="combo-display"></div>
     <div id="log-panel"></div>
-    <div id="action-panel"></div>
+    <div id="action-panel" style="height:100%;display:flex;flex-direction:column;min-height:0"><div id="action-panel-inner"><div id="action-panel-content"></div></div></div>
   </div>
   <div id="minigame-overlay">
     <div id="minigame-header">
@@ -1870,26 +1876,7 @@ const State={
 // ==================== UI 工具 ====================
 const $=s=>document.querySelector(s);
 const logPanel=$('#log-panel');
-const actionPanel=$('#action-panel');
-
-// 劫持innerHTML，自动在内容末尾追加底部留白
-(function(){
-  const desc=Object.getOwnPropertyDescriptor(Element.prototype,'innerHTML');
-  Object.defineProperty(actionPanel,'innerHTML',{
-    get:function(){return desc.get.call(this);},
-    set:function(html){
-      const spacer='<div class="panel-spacer" style="border-top:60px solid transparent;flex-shrink:0;width:100%;"></div>';
-      const final=html+spacer;
-      if(final.length!==html.length){
-        console.log('[panel-hijack] spacer appended, html end:',html.slice(-60));
-        try{if(window._panelHijackLog)(window._panelHijackLog++);}
-        catch(e){}
-      }
-      desc.set.call(this,final);
-    },
-    configurable:true
-  });
-})();
+const actionPanel=$('#action-panel-content');
 const comboDisplay=$('#combo-display');
 
 function addLog(msg,cls='log-info'){
