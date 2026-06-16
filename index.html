@@ -69,7 +69,6 @@ body{
   overflow-y:auto;
   scroll-behavior:smooth;
 }
-#action-panel::after{content:'';display:block;height:50px;flex-shrink:0;}
 #action-panel h2{
   font-size:17px;color:#cc88ff;text-align:center;
   padding:7px;background:rgba(100,60,200,0.15);
@@ -1867,6 +1866,13 @@ const State={
 const $=s=>document.querySelector(s);
 const logPanel=$('#log-panel');
 const actionPanel=$('#action-panel');
+
+// 自动在actionPanel底部添加留白，确保返回按钮不被遮挡
+new MutationObserver(()=>{
+  if(!actionPanel.querySelector(':scope>.panel-spacer')){
+    actionPanel.insertAdjacentHTML('beforeend','<div class="panel-spacer" style="height:50px;flex-shrink:0;"></div>');
+  }
+}).observe(actionPanel,{childList:true});
 const comboDisplay=$('#combo-display');
 
 function addLog(msg,cls='log-info'){
